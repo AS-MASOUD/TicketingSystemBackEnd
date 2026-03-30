@@ -38,6 +38,7 @@ public class GetYearTickerInfoHandler
                 {
                     1403 => result.Where(a => (a.InsertDate >= new DateTime(2024, 3, 20) && a.InsertDate <= new DateTime(2025, 3, 20))).ToList(),
                     1404 => result.Where(a => (a.InsertDate >= new DateTime(2025, 3, 21) && a.InsertDate <= new DateTime(2026, 3, 20))).ToList(),
+                    1405 => result.Where(a => (a.InsertDate >= new DateTime(2026, 3, 21) && a.InsertDate <= new DateTime(2027, 3, 20))).ToList(),
                 };
 
                 for (var i = 1; i < 13; i++)
