@@ -114,4 +114,14 @@ public class TicketingDbContext : DbContext
     public DbSet<TicketFlow> TicketFlows { get; set; }
     public DbSet<TicketingUser> Users { get; set; }
     public DbSet<TicketingUserRole> UserRoles { get; set; }
+    public DbSet<TicketingRole> Roles { get; set; }
+    public DbSet<TicketingPermission> Permissions { get; set; }
+    public DbSet<TicketingRolePermission> RolePermissions { get; set; }
+    public DbSet<TicketingTeam> Teams { get; set; }
+    public DbSet<TicketingTeamMember> TeamMembers { get; set; }
+    public DbSet<UserProject> UserProjects { get; set; }
+    public DbSet<SlaPolicy> SlaPolicies { get; set; }
+    public DbSet<TicketingNotification> Notifications { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<AppSetting> AppSettings { get; set; }
 }

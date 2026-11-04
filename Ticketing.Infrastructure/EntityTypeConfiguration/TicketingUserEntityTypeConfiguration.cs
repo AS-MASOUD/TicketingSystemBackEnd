@@ -15,12 +15,18 @@ public class TicketingUserEntityTypeConfiguration : IEntityTypeConfiguration<Tic
         builder.Property(x => x.PasswordHash).HasMaxLength(500).IsRequired();
         builder.Property(x => x.Name).HasMaxLength(100);
         builder.Property(x => x.Family).HasMaxLength(100);
+        builder.Property(x => x.Email).HasMaxLength(150);
         builder.Property(x => x.Mobile).HasMaxLength(50);
         builder.Property(x => x.IsActive).IsRequired().HasDefaultValue(true);
         builder.Property(x => x.DefaultRoleId).IsRequired().HasDefaultValue(2);
         builder.Property(x => x.CreatedAt).IsRequired().HasDefaultValueSql("GETDATE()");
 
         builder.HasMany(x => x.UserRoles)
+               .WithOne(x => x.User)
+               .HasForeignKey(x => x.UserId)
+               .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.UserProjects)
                .WithOne(x => x.User)
                .HasForeignKey(x => x.UserId)
                .OnDelete(DeleteBehavior.Cascade);
