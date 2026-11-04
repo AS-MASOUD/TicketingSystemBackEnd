@@ -1,4 +1,4 @@
-﻿using Carter;
+using Carter;
 using MediatR;
 
 namespace Ticketing.EndPoints.Dashboard.Query.GetDashboardChartData
@@ -14,6 +14,7 @@ namespace Ticketing.EndPoints.Dashboard.Query.GetDashboardChartData
                     {
                         return await mediator.Send(query, cancellationToken);
                     })
+                .RequireAuthorization()
                 .WithOpenApi()
                 .WithTags("Dashboard")
                 .Produces<object[]>();

@@ -14,6 +14,7 @@ public class GetProjectListModule : ICarterModule
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Project")
             .Produces<object[]>();

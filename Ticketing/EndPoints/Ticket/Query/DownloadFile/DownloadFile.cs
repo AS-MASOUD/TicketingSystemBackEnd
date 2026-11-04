@@ -1,40 +1,56 @@
 using Carter;
 using MediatR;
 using Ticketing.Domain.Contracts;
+using Ticketing.Services;
 
 namespace Ticketing.EndPoints.Ticket.Query.DownloadFile;
 
 public class DownloadFileresponce
 {
-    public string filePath { get; set; }
+    public string? filePath { get; set; }
+    public string? originalFileName { get; set; }
 }
-public class DownloadFileQuery:IRequest<DownloadFileresponce>
+
+public class DownloadFileQuery : IRequest<DownloadFileresponce?>
 {
     public int ticketId { get; set; }
 }
+
 public class DownloadFile
 {
-    public class Handler(ITicketService ticketService,ILogger<DownloadFile> _logger):IRequestHandler<DownloadFileQuery,DownloadFileresponce>
+    public class Handler(ITicketService ticketService, ICurrentUserService currentUser, ILogger<DownloadFile> logger)
+        : IRequestHandler<DownloadFileQuery, DownloadFileresponce?>
     {
-        public async Task<DownloadFileresponce> Handle(DownloadFileQuery request, CancellationToken cancellationToken)
+        public async Task<DownloadFileresponce?> Handle(DownloadFileQuery request, CancellationToken cancellationToken)
         {
             try
             {
-                var result = await ticketService.GetAsync(a=>a.Id == request.ticketId);
-                string path = Path.Combine(Directory.GetCurrentDirectory(), "Files");
-                string fileNameWithPath = Path.Combine(path, result.FilePath);
+                var ticket = await ticketService.GetAsync(a => a.Id == request.ticketId);
+                if (ticket == null || string.IsNullOrWhiteSpace(ticket.FilePath))
+                    return null;
 
-                return new DownloadFileresponce()
+                // Authorization check: User can download if they are adminVira (5), adminTaz (4), or the ticket owner/assignee
+                if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz && ticket.UserId != currentUser.UserId && !currentUser.HasRole(ticket.CurrentRoleId))
                 {
-                    filePath = fileNameWithPath,
+                    logger.LogWarning("Unauthorized file download attempt by user {UserId} for ticket {TicketId}", currentUser.UserId, request.ticketId);
+                    return null;
+                }
+
+                string safeFileName = Path.GetFileName(ticket.FilePath);
+                string basePath = Path.Combine(Directory.GetCurrentDirectory(), "Files");
+                string fullPath = Path.Combine(basePath, safeFileName);
+
+                return new DownloadFileresponce
+                {
+                    filePath = fullPath,
+                    originalFileName = safeFileName
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError("Get Error : DownloadFile- Handle " + ex.Message);
+                logger.LogError(ex, "Error in DownloadFile Handler for ticket {TicketId}", request.ticketId);
+                return null;
             }
-
-            return null;
         }
     }
 }
@@ -49,14 +65,16 @@ public class DownloadFileModule : ICarterModule
                     CancellationToken cancellationToken) =>
                 {
                     var result = await mediator.Send(query, cancellationToken);
-                    if (System.IO.File.Exists(result.filePath))  
-                    {  
-                        return Results.File(System.IO.File.OpenRead(result.filePath), "application/octet-stream", Path.GetFileName(result.filePath));  
+                    if (result != null && !string.IsNullOrEmpty(result.filePath) && System.IO.File.Exists(result.filePath))
+                    {
+                        return Results.File(System.IO.File.OpenRead(result.filePath), "application/octet-stream", result.originalFileName ?? Path.GetFileName(result.filePath));
                     }
-                    return null;
+                    return Results.NotFound(new { message = "فایل مورد نظر یافت نشد." });
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Ticket")
-            .Produces<object[]>();
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound);
     }
 }

@@ -14,6 +14,7 @@ public class GetTicketMassageListModule : ICarterModule
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Massage")
             .Produces<object[]>();

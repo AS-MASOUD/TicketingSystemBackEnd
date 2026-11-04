@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.Globalization;
@@ -17,7 +17,7 @@ namespace Ticketing.EndPoints.Reporting.Query.DownloadReport
                             IProjectService projectService,
                             IStatusService statusService,
                             IExport _export,
-                            ILogger<GetReportHandler> _logger) :
+                            Ticketing.Services.ICurrentUserService currentUser, ILogger<GetReportHandler> _logger) :
                             IRequestHandler<GetReportQuery, FileContentResult>
         {
             #region enum returns
@@ -26,81 +26,81 @@ namespace Ticketing.EndPoints.Reporting.Query.DownloadReport
                 switch (statusId)
                 {
                     case 1:
-                        return "انجام شده";
+                        return "????? ???";
                     case 2:
-                        return "جدید";
+                        return "????";
                     case 3:
-                        return "ارجاع به یرا";
+                        return "????? ?? ???";
                     case 4:
-                        return "رد شده";
+                        return "?? ???";
                     case 5:
-                        return "بازگشت از ویرا";
+                        return "?????? ?? ????";
                     case 6:
-                        return "انجام شده در انتظار تایید";
+                        return "????? ??? ?? ?????? ?????";
                     case 7:
-                        return "در صف انجام پردازش";
+                        return "?? ?? ????? ??????";
                     case 8:
-                        return "درحال انجام";
+                        return "????? ?????";
                     case 9:
-                        return "رد شده در انتظار تایید";
+                        return "?? ??? ?? ?????? ?????";
                 }
-                return "تعریف نشده";
+                return "????? ????";
             }
             private string projectRturn(int projectId)
             {
                 switch (projectId)
                 {
                     case 1:
-                        return "سامانه مدیریت پرونده ها";
+                        return "?????? ?????? ?????? ??";
                     case 2:
-                        return "سامانه میز خدمت";
+                        return "?????? ??? ????";
                     case 3:
-                        return "سامانه امحا";
+                        return "?????? ????";
                     case 4:
-                        return "سامانه تبادل اطلاعات";
+                        return "?????? ????? ???????";
                     case 5:
-                        return "سامانه هوش تجاری";
+                        return "?????? ??? ?????";
                     case 6:
-                        return "زیر ساخت";
+                        return "??? ????";
                 }
-                return "تعریف نشده";
+                return "????? ????";
             }
             private string requestRturn(object requestId)
             {
                 switch (requestId)
                 {
                     case RequestType.Support:
-                        return "پشتیبانی";
+                        return "????????";
                     case RequestType.Develop:
-                        return "توسعه";
+                        return "?????";
                 }
-                return "تعریف نشده";
+                return "????? ????";
             }
             private string priorityRturn(object priorityId)
             {
                 switch (priorityId)
                 {
                     case Priority.high:
-                        return "بالا";
+                        return "????";
                     case Priority.medium:
-                        return "پایین";
+                        return "?????";
                     case Priority.low:
-                        return "متوسط";
+                        return "?????";
                 }
-                return "تعریف نشده";
+                return "????? ????";
             }
             private string IsScheduleReturn(object isScheduleId)
             {
                 switch (isScheduleId)
                 {
                     case IsSchedule.yes:
-                        return "بله";
+                        return "???";
                     case IsSchedule.no:
-                        return "خیر";
+                        return "???";
                     case IsSchedule.Support:
                         return "-";
                 }
-                return "تعریف نشده";
+                return "????? ????";
             }
             #endregion
 
@@ -155,10 +155,10 @@ namespace Ticketing.EndPoints.Reporting.Query.DownloadReport
                     #endregion
 
                     #region Handel  start and end date
-                    string I_start = "تعیین نشده";
-                    string I_end = "تعیین نشده";
-                    string C_start = "تعیین نشده";
-                    string C_end = "تعیین نشده";
+                    string I_start = "????? ????";
+                    string I_end = "????? ????";
+                    string C_start = "????? ????";
+                    string C_end = "????? ????";
                     if (request.InsertStartDateTime != null)
                     {
                         I_start = string.Format("{2}/{1}/{0}", pc.GetYear((DateTime)request.InsertStartDateTime), pc.GetMonth((DateTime)request.InsertStartDateTime), pc.GetDayOfMonth((DateTime)request.InsertStartDateTime));
@@ -196,19 +196,19 @@ namespace Ticketing.EndPoints.Reporting.Query.DownloadReport
                     #region headerInfoxslx
                     var headerInfoxslx = new List<string>
                     {
-                        "شماره ردیف",
-                        "شماره تیکت",
-                        "ثبت کننده",
-                        "تاریخ ثبت",
-                        "نوع درخواست",
-                        "بر اساس برنامه زمانبندی می باشد",
-                        "اولویت",
-                        "عنوان",
-                        "سامانه",
-                        "وضعیت تیکت",
-                        "انجام دهنده",
-                        "ساعت صرف شده",
-                        "تاریخ و ساعت تحویل تیکت"
+                        "????? ????",
+                        "????? ????",
+                        "??? ?????",
+                        "????? ???",
+                        "??? ???????",
+                        "?? ???? ?????? ???????? ?? ????",
+                        "??????",
+                        "?????",
+                        "??????",
+                        "????? ????",
+                        "????? ?????",
+                        "???? ??? ???",
+                        "????? ? ???? ????? ????"
                     };
                     #endregion
 
@@ -230,7 +230,7 @@ namespace Ticketing.EndPoints.Reporting.Query.DownloadReport
                         new CellInfo() {Text = statusRturn(x.StatusId) ,DynamicWidth=true},
                         new CellInfo() {Text = x.DeveloperId.ToString() ,DynamicWidth=true},
                         new CellInfo() {Text = (x.TicketTime==null?"0":x.TicketTime) ,DynamicWidth=true},
-                        new CellInfo() {Text = x.ProcessEndDateTime == null?"ثبت نشده":
+                        new CellInfo() {Text = x.ProcessEndDateTime == null?"??? ????":
                                                new PersianCalendar().GetYear((DateTime)x.ProcessEndDateTime).ToString("D2") + "/" +
                                                new PersianCalendar().GetMonth((DateTime)x.ProcessEndDateTime).ToString("D2") + "/" +
                                                new PersianCalendar().GetDayOfMonth((DateTime)x.ProcessEndDateTime).ToString("D2") + "  " +
@@ -256,11 +256,11 @@ namespace Ticketing.EndPoints.Reporting.Query.DownloadReport
                         ExcelDataType.Text,
                     }, CreatedList, footersum, headerInfo: new List<string>
                     {
-                        "از تاریخ ایجاد :" + ReportResultHeader.InsertStartDateTime,
-                        "تا تاریخ ایجاد :" + ReportResultHeader.InsertEndDateTime,
-                        "از تاریخ تحویل :" + ReportResultHeader.CloseStartDateTime,
-                        "تا تاریخ تحویل :" + ReportResultHeader.CloseEndDateTime,
-                        "تاریخ چاپ گزارش :" + ReportResultHeader.PrintDate,
+                        "?? ????? ????? :" + ReportResultHeader.InsertStartDateTime,
+                        "?? ????? ????? :" + ReportResultHeader.InsertEndDateTime,
+                        "?? ????? ????? :" + ReportResultHeader.CloseStartDateTime,
+                        "?? ????? ????? :" + ReportResultHeader.CloseEndDateTime,
+                        "????? ??? ????? :" + ReportResultHeader.PrintDate,
                     });
                     #endregion
                 }

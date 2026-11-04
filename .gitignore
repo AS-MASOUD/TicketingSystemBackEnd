@@ -42,3 +42,6 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 /Ticketing/Files
+/Ticketing/App_Data/
+/Ticketing.Tests/bin/
+/Ticketing.Tests/obj/

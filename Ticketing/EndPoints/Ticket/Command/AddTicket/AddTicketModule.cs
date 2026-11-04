@@ -10,11 +10,12 @@ public class AddTicketModule : ICarterModule
     {
         app.MapPost(
                 "api/v1/addTicket",
-                async (IMediator mediator, [FromForm]AddTicketQuery query,
+                async (IMediator mediator, [FromForm] AddTicketQuery query,
                     CancellationToken cancellationToken) =>
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .DisableAntiforgery()
             .WithOpenApi()
             .WithTags("Ticket")

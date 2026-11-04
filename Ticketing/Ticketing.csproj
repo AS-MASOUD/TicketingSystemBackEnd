@@ -34,4 +34,12 @@
       <ProjectReference Include="..\Ticketing.Utility\Ticketing.Utility.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="EndPoints\Authentication\Command\AddUser\AddUserHandler.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="EndPoints\Authentication\Command\AddUser\" />
+    </ItemGroup>
+
 </Project>

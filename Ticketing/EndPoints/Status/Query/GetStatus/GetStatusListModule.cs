@@ -14,6 +14,7 @@ public class GetStatusListModule : ICarterModule
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Status")
             .Produces<object[]>();

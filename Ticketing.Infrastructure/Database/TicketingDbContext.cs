@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Ticketing.Domain.Entities;
 using Ticketing.Infrastructure.EntityTypeConfiguration;
 
@@ -12,8 +12,6 @@ public class TicketingDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        //modelBuilder.Entity<Customer>().OwnsOne(p => p.CustomerInfo).Property(x=>x.FirstName).HasColumnType("varchar(50)");
-        //new BlogEntityTypeConfiguration().Configure(modelBuilder.Entity<Blog>());
         modelBuilder.Entity<Project>().HasData(
            new Project
            {
@@ -114,4 +112,6 @@ public class TicketingDbContext : DbContext
     public DbSet<Status> Statuses { get; set; }
     public DbSet<Ticket> Tickets { get; set; }
     public DbSet<TicketFlow> TicketFlows { get; set; }
+    public DbSet<TicketingUser> Users { get; set; }
+    public DbSet<TicketingUserRole> UserRoles { get; set; }
 }

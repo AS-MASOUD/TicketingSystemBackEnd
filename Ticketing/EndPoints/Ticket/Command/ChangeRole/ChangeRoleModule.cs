@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ticketing.EndPoints.Ticket.Command.ChangeGroup;
 
-public class ChangeRoleModule: ICarterModule
+public class ChangeRoleModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
@@ -15,6 +15,7 @@ public class ChangeRoleModule: ICarterModule
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Ticket")
             .Produces<object[]>();

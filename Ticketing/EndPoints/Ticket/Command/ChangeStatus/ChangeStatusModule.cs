@@ -15,6 +15,7 @@ public class ChangeStatusModule : ICarterModule
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Ticket")
             .Produces<object[]>();

@@ -1,4 +1,4 @@
-﻿using Carter;
+using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,10 +15,10 @@ namespace Ticketing.EndPoints.Ticket.Command.ChangeDevelopedBy
                     {
                         return await mediator.Send(query, cancellationToken);
                     })
+                .RequireAuthorization()
                 .WithOpenApi()
                 .WithTags("Ticket")
                 .Produces<object[]>();
         }
-
     }
 }

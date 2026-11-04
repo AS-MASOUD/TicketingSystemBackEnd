@@ -1,45 +1,63 @@
-﻿using Carter;
+using Carter;
 using MediatR;
 using Ticketing.Domain.Contracts;
-using Ticketing.EndPoints.Ticket.Query.DownloadFile;
+using Ticketing.Services;
 
 namespace Ticketing.EndPoints.Massage.Query.DownloadFile;
 
 public class MasaageDownloadFileResponce
 {
-    public string filePath { get; set; }
+    public string? filePath { get; set; }
+    public string? originalFileName { get; set; }
 }
-public class MassageDownloadFileQuery : IRequest<MasaageDownloadFileResponce>
+
+public class MassageDownloadFileQuery : IRequest<MasaageDownloadFileResponce?>
 {
     public int massageId { get; set; }
 }
+
 public class DownloadMessageFile
 {
-    public class Handler(IMassageService massageService, ILogger<DownloadMessageFile> _logger) : IRequestHandler<MassageDownloadFileQuery, MasaageDownloadFileResponce>
+    public class Handler(IMassageService massageService, ITicketService ticketService, ICurrentUserService currentUser, ILogger<DownloadMessageFile> logger)
+        : IRequestHandler<MassageDownloadFileQuery, MasaageDownloadFileResponce?>
     {
-        public async Task<MasaageDownloadFileResponce> Handle(MassageDownloadFileQuery request, CancellationToken cancellationToken)
+        public async Task<MasaageDownloadFileResponce?> Handle(MassageDownloadFileQuery request, CancellationToken cancellationToken)
         {
             try
             {
-                var result = await massageService.GetAsync(a => a.Id == request.massageId);
-                string path = Path.Combine(Directory.GetCurrentDirectory(), "Files");
-                string fileNameWithPath = Path.Combine(path, result.FilePath);
+                var massage = await massageService.GetAsync(a => a.Id == request.massageId);
+                if (massage == null || string.IsNullOrWhiteSpace(massage.FilePath))
+                    return null;
 
-                return new MasaageDownloadFileResponce()
+                var ticket = await ticketService.GetAsync(a => a.Id == massage.TicketId);
+                if (ticket != null)
                 {
-                    filePath = fileNameWithPath,
+                    if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz && ticket.UserId != currentUser.UserId && !currentUser.HasRole(ticket.CurrentRoleId))
+                    {
+                        logger.LogWarning("Unauthorized message file download attempt by user {UserId} for massage {MassageId}", currentUser.UserId, request.massageId);
+                        return null;
+                    }
+                }
+
+                string safeFileName = Path.GetFileName(massage.FilePath);
+                string basePath = Path.Combine(Directory.GetCurrentDirectory(), "Files");
+                string fullPath = Path.Combine(basePath, safeFileName);
+
+                return new MasaageDownloadFileResponce
+                {
+                    filePath = fullPath,
+                    originalFileName = safeFileName
                 };
             }
-
             catch (Exception ex)
             {
-                _logger.LogError("Get Error : DownloadFile- Handle " + ex.Message);
+                logger.LogError(ex, "Error in DownloadMessageFile Handler for message {MassageId}", request.massageId);
+                return null;
             }
-
-            return null;
         }
     }
 }
+
 public class DownloadFileModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
@@ -50,14 +68,16 @@ public class DownloadFileModule : ICarterModule
                     CancellationToken cancellationToken) =>
                 {
                     var result = await mediator.Send(query, cancellationToken);
-                    if (System.IO.File.Exists(result.filePath))
+                    if (result != null && !string.IsNullOrEmpty(result.filePath) && System.IO.File.Exists(result.filePath))
                     {
-                        return Results.File(System.IO.File.OpenRead(result.filePath), "application/octet-stream", Path.GetFileName(result.filePath));
+                        return Results.File(System.IO.File.OpenRead(result.filePath), "application/octet-stream", result.originalFileName ?? Path.GetFileName(result.filePath));
                     }
-                    return null;
+                    return Results.NotFound(new { message = "فایل پیوست پیام یافت نشد." });
                 })
+            .RequireAuthorization()
             .WithOpenApi()
             .WithTags("Massage")
-            .Produces<object[]>();
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status404NotFound);
     }
 }

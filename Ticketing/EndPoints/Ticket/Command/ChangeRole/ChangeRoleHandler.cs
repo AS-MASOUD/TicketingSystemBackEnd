@@ -1,20 +1,33 @@
 using MediatR;
 using Ticketing.Domain.Contracts;
+using Ticketing.Services;
 
 namespace Ticketing.EndPoints.Ticket.Command.ChangeGroup;
 
 public class ChangeRoleHandler
 {
-    public class Handler(ITicketService ticketService,IProjectRoleService projectRoleService,ITicketFlowService ticketFlowService,ILogger<ChangeRoleHandler> _logger):IRequestHandler<ChangeRoleQuery,object>
+    public class Handler(
+        ITicketService ticketService,
+        IProjectRoleService projectRoleService,
+        ITicketFlowService ticketFlowService,
+        ICurrentUserService currentUser,
+        ILogger<ChangeRoleHandler> _logger)
+        : IRequestHandler<ChangeRoleQuery, object?>
     {
-        public async Task<object> Handle(ChangeRoleQuery request, CancellationToken cancellationToken)
+        public async Task<object?> Handle(ChangeRoleQuery request, CancellationToken cancellationToken)
         {
             try
             {
-                var listRoles = await projectRoleService.ListAsync(null);
+                if (currentUser.IsAuthenticated && currentUser.UserId.HasValue)
+                {
+                    request.UserId = currentUser.UserId.Value;
+                }
+
                 var findticket = await ticketService.GetAsync(a => a.Id == request.TicketId);
-                
-                if (findticket.CurrentRoleId==5 && request.RoleId==4)
+                if (findticket == null)
+                    return null;
+
+                if (findticket.CurrentRoleId == 5 && request.RoleId == 4)
                 {
                     findticket.LastChangeDatetime = DateTime.Now;
                     findticket.StatusId = 5;
@@ -24,24 +37,24 @@ public class ChangeRoleHandler
                     findticket.StatusId = 3;
                 }
 
-                await ticketFlowService.AddAsync(new Domain.Entities.TicketFlow()
+                await ticketFlowService.AddAsync(new Domain.Entities.TicketFlow
                 {
                     CurrentRoleId = request.RoleId,
                     InsertDate = DateTime.Now,
                     StatusId = findticket.StatusId,
                     UserId = request.UserId,
-                    Username = findticket.Username,
+                    Username = !string.IsNullOrEmpty(currentUser.Username) ? currentUser.Username : findticket.Username,
                     TicketId = findticket.Id,
                     PreviousRoleId = findticket.CurrentRoleId
                 });
 
                 findticket.CurrentRoleId = request.RoleId;
-                
+
                 return await ticketService.UpdateAsync(findticket);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Get Error : ChangeGroupHandler- Handle " + ex.Message);
+                _logger.LogError(ex, "Error in ChangeRoleHandler Handle");
             }
             return null;
         }

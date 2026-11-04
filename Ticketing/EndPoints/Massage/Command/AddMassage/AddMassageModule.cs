@@ -15,6 +15,7 @@ public class AddMassageModule : ICarterModule
                 {
                     return await mediator.Send(query, cancellationToken);
                 })
+            .RequireAuthorization()
             .DisableAntiforgery()
             .WithOpenApi()
             .WithTags("Massage")

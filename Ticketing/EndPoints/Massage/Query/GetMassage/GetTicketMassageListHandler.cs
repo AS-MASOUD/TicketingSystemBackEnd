@@ -1,25 +1,58 @@
 using System.Globalization;
 using MediatR;
 using Ticketing.Domain.Contracts;
-using Ticketing.Domain.Enums;
+using Ticketing.Services;
 
 namespace Ticketing.EndPoints.Massage.Query.GetMassage;
 
 public class GetTicketMassageListHandler
 {
-    public class Handler(IMassageService massageService, ITicketService ticketService,
-        IStatusService statusService, IHttpContextAccessor httpContextAccessor, IProjectService projectService, ILogger<GetTicketMassageListQuery> _logger) : IRequestHandler<GetTicketMassageListQuery, object>
+    public class Handler(
+        IMassageService massageService,
+        ITicketService ticketService,
+        IStatusService statusService,
+        IHttpContextAccessor httpContextAccessor,
+        IProjectService projectService,
+        ICurrentUserService currentUser,
+        ILogger<GetTicketMassageListQuery> _logger)
+        : IRequestHandler<GetTicketMassageListQuery, object?>
     {
-        public async Task<object> Handle(GetTicketMassageListQuery request, CancellationToken cancellationToken)
+        public async Task<object?> Handle(GetTicketMassageListQuery request, CancellationToken cancellationToken)
         {
             try
             {
+                var ticketinfo = await ticketService.GetAsync(a => a.Id == request.TicketId);
+                if (ticketinfo == null)
+                    return null;
+
+                // Server-side authorization check:
+                // User can view ticket details if they are adminVira (5), adminTaz (4), the creator, or assigned to current role
+                if (currentUser.IsAuthenticated)
+                {
+                    if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz &&
+                        ticketinfo.UserId != currentUser.UserId &&
+                        !currentUser.HasRole(ticketinfo.CurrentRoleId))
+                    {
+                        _logger.LogWarning("Unauthorized access attempt to ticket {TicketId} by user {UserId}", request.TicketId, currentUser.UserId);
+                        return null;
+                    }
+                }
+
                 var liststatus = await statusService.ListAsync(null);
                 var listprojects = await projectService.ListAsync(null);
-                var ticketinfo = await ticketService.GetAsync(a => a.Id == request.TicketId);
                 var messageList = await massageService.ListAsync(a => a.TicketId == request.TicketId);
                 var p = new PersianCalendar();
-                var x = new
+
+                string scheme = httpContextAccessor.HttpContext?.Request.Scheme ?? "http";
+                string host = httpContextAccessor.HttpContext?.Request.Host.Value ?? "localhost";
+                string baseFileUrl = $"{scheme}://{host}/Files/";
+
+                bool ticketHasFile = !string.IsNullOrWhiteSpace(ticketinfo.FilePath);
+
+                var statusObj = liststatus.FirstOrDefault(a => a.Id == ticketinfo.StatusId);
+                var projectObj = listprojects.FirstOrDefault(a => a.Id == ticketinfo.ProjectId);
+
+                return new
                 {
                     ticketInfo = new
                     {
@@ -27,37 +60,40 @@ public class GetTicketMassageListHandler
                         TicketNumber = ticketinfo.TicketNumber,
                         Title = ticketinfo.Title,
                         StatusId = ticketinfo.StatusId,
-                        Status = liststatus.FirstOrDefault(a => a.Id == ticketinfo.StatusId).Name,
+                        Status = statusObj?.Name ?? "نامشخص",
                         Username = ticketinfo.Username,
-                        Date = p.GetHour(ticketinfo.InsertDate) + ":" + (p.GetMinute(ticketinfo.InsertDate)<10 ? ("0"+p.GetMinute(ticketinfo.InsertDate)) : p.GetMinute(ticketinfo.InsertDate)) + " - " + p.GetYear(ticketinfo.InsertDate) + "/" + p.GetMonth(ticketinfo.InsertDate) + "/" + p.GetDayOfMonth(ticketinfo.InsertDate), // 2024/01/01 19:4 -> 2024/01/01 19:04
-                        Project = listprojects.FirstOrDefault(a => a.Id == ticketinfo.ProjectId).Name,
-                        ProjectId = listprojects.FirstOrDefault(a => a.Id == ticketinfo.ProjectId).Id,
+                        Date = p.GetHour(ticketinfo.InsertDate).ToString("00") + ":" + p.GetMinute(ticketinfo.InsertDate).ToString("00") + " - " + p.GetYear(ticketinfo.InsertDate) + "/" + p.GetMonth(ticketinfo.InsertDate).ToString("00") + "/" + p.GetDayOfMonth(ticketinfo.InsertDate).ToString("00"),
+                        Project = projectObj?.Name ?? "نامشخص",
+                        ProjectId = projectObj?.Id ?? ticketinfo.ProjectId,
                         Priority = ticketinfo.Priority,
                         Text = ticketinfo.Text,
-                        File = $"{httpContextAccessor.HttpContext.Request.Scheme}://{httpContextAccessor.HttpContext.Request.Host}" + "/Files/" + ticketinfo.FilePath,
+                        File = ticketHasFile ? baseFileUrl + ticketinfo.FilePath : "",
                         UserId = ticketinfo.UserId,
-                        HaveFile = !(ticketinfo.FilePath.Trim() == ""),
-                        TicketTime=ticketinfo.TicketTime,
-                        DeveloperId=ticketinfo.DeveloperId,
-                        RequestTypeId=ticketinfo.RequestTypeId,
-                        IsSchedule=ticketinfo.IsSchedule,
+                        HaveFile = ticketHasFile,
+                        TicketTime = ticketinfo.TicketTime,
+                        DeveloperId = ticketinfo.DeveloperId,
+                        RequestTypeId = ticketinfo.RequestTypeId,
+                        IsSchedule = ticketinfo.IsSchedule,
                     },
-                    messageList = messageList.Select(x => new
+                    messageList = messageList.Select(x =>
                     {
-                        Id = x.Id,
-                        Text = x.Text,
-                        Username = x.Username,
-                        UserId = x.UserId,
-                        Date = p.GetHour(x.InsertDate) + ":" + (p.GetMinute(x.InsertDate)<10 ? ("0"+p.GetMinute(x.InsertDate)) : p.GetMinute(x.InsertDate)) + " - " + p.GetYear(x.InsertDate) + "/" + p.GetMonth(x.InsertDate) + "/" + p.GetDayOfMonth(x.InsertDate), // 2024/01/01 19:4 -> 2024/01/01 19:04
-                        FilePath = $"{httpContextAccessor.HttpContext.Request.Scheme}://{httpContextAccessor.HttpContext.Request.Host}" + "/Files/" + ticketinfo.FilePath,
-                        HaveFile = !string.IsNullOrWhiteSpace(x.FilePath)
+                        bool msgHasFile = !string.IsNullOrWhiteSpace(x.FilePath);
+                        return new
+                        {
+                            Id = x.Id,
+                            Text = x.Text,
+                            Username = x.Username,
+                            UserId = x.UserId,
+                            Date = p.GetHour(x.InsertDate).ToString("00") + ":" + p.GetMinute(x.InsertDate).ToString("00") + " - " + p.GetYear(x.InsertDate) + "/" + p.GetMonth(x.InsertDate).ToString("00") + "/" + p.GetDayOfMonth(x.InsertDate).ToString("00"),
+                            FilePath = msgHasFile ? baseFileUrl + x.FilePath : "",
+                            HaveFile = msgHasFile
+                        };
                     })
                 };
-                return x;
             }
             catch (Exception ex)
             {
-                _logger.LogError("Get Error : GetTicketMassageList- Handle " + ex.Message);
+                _logger.LogError(ex, "Error in GetTicketMassageListHandler for TicketId {TicketId}", request.TicketId);
             }
 
             return null;
