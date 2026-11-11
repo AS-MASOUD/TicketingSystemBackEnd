@@ -2,6 +2,8 @@ using System.Globalization;
 using MediatR;
 using Ticketing.Domain.Contracts;
 using Ticketing.Services;
+using Ticketing.Infrastructure.Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ticketing.EndPoints.Massage.Query.GetMassage;
 
@@ -14,6 +16,7 @@ public class GetTicketMassageListHandler
         IHttpContextAccessor httpContextAccessor,
         IProjectService projectService,
         ICurrentUserService currentUser,
+        TicketingDbContext db,
         ILogger<GetTicketMassageListQuery> _logger)
         : IRequestHandler<GetTicketMassageListQuery, object?>
     {
@@ -35,6 +38,9 @@ public class GetTicketMassageListHandler
                 var liststatus = await statusService.ListAsync(null);
                 var listprojects = await projectService.ListAsync(null);
                 var messageList = await massageService.ListAsync(a => a.TicketId == request.TicketId);
+                var canDelete = TicketAccessPolicy.CanDelete(ticketinfo, currentUser) &&
+                    (currentUser.IsAdminVira || !await db.TicketFlows.AsNoTracking()
+                        .AnyAsync(flow => flow.TicketId == request.TicketId && flow.StatusId != 2, cancellationToken));
                 var p = new PersianCalendar();
 
                 string scheme = httpContextAccessor.HttpContext?.Request.Scheme ?? "http";
@@ -52,6 +58,7 @@ public class GetTicketMassageListHandler
                         canReply = TicketAccessPolicy.CanReply(ticketinfo, currentUser),
                         canEdit = TicketAccessPolicy.CanEdit(ticketinfo, currentUser),
                         canAssign = TicketAccessPolicy.CanAssign(ticketinfo, currentUser),
+                        canDelete,
                         allowedStatuses = Enumerable.Range(1, 9).Where(id => TicketAccessPolicy.CanChangeStatus(ticketinfo, currentUser, id)).ToArray(),
                         allowedDestinations = new[] { 4, 5 }.Where(id => TicketAccessPolicy.CanRoute(ticketinfo, currentUser, id)).ToArray()
                     },

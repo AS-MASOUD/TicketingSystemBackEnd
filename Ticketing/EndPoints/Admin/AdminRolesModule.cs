@@ -53,6 +53,7 @@ public class AdminRolesModule : ICarterModule
                 logger.LogError(ex, "Error fetching admin roles; returning fallback system roles");
                 var fallbackDtos = new List<AdminRoleDto>
                 {
+                    new AdminRoleDto { Id = 1, Name = "User", DisplayName = "کارفرما", Description = "ثبت‌کننده درخواست", IsSystemRole = true, IsActive = true, PermissionCodes = new List<string> { "tickets.view", "tickets.create" }, CreatedAt = DateTime.UtcNow },
                     new AdminRoleDto { Id = 5, Name = "AdminVira", DisplayName = "مدیر ارشد سامانه", Description = "دسترسی کامل به مدیریت سیستم", IsSystemRole = true, IsActive = true, PermissionCodes = new List<string> { "all" }, CreatedAt = DateTime.UtcNow },
                     new AdminRoleDto { Id = 4, Name = "TechnicalManager", DisplayName = "مدیر فنی پروژه", Description = "مدیریت فنی بر تیکت‌ها", IsSystemRole = true, IsActive = true, PermissionCodes = new List<string> { "tickets.view", "tickets.reply" }, CreatedAt = DateTime.UtcNow },
                     new AdminRoleDto { Id = 2, Name = "Developer", DisplayName = "برنامه‌نویس و کارشناس", Description = "رسیدگی به تیکت‌ها", IsSystemRole = true, IsActive = true, PermissionCodes = new List<string> { "tickets.view", "tickets.reply" }, CreatedAt = DateTime.UtcNow },

@@ -37,4 +37,30 @@ public class SharedRoleVisibilityTests
         Assert.False(TicketAccessPolicy.CanView(ticket, fixture.User));
         Assert.False(TicketVisibility.For(fixture.User).Compile()(ticket));
     }
+
+    [Fact]
+    public void Deleting_RequiresOwnerAndNewStatus_OrSystemAdministrator()
+    {
+        var fixture = new TicketTestFixture();
+        var ticket = fixture.Technical;
+        fixture.User.RoleIds = new[] { 1 };
+        ticket.UserId = fixture.User.UserId!.Value;
+        ticket.StatusId = 2;
+        Assert.True(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+        ticket.UserId = 999;
+        Assert.False(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+        ticket.UserId = fixture.User.UserId.Value;
+        ticket.StatusId = 3;
+        Assert.False(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+        fixture.User.RoleIds = new[] { 2 };
+        ticket.StatusId = 2;
+        Assert.False(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+        fixture.User.RoleIds = new[] { 4 };
+        Assert.False(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+        fixture.User.RoleIds = new[] { 5 };
+        ticket.StatusId = 8;
+        Assert.True(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+        fixture.User.IsAuthenticated = false;
+        Assert.False(TicketAccessPolicy.CanDelete(ticket, fixture.User));
+    }
 }

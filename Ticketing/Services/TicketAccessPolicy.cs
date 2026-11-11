@@ -4,6 +4,14 @@ namespace Ticketing.Services;
 
 public static class TicketAccessPolicy
 {
+    public static bool CanDelete(Ticket? ticket, ICurrentUserService? user)
+    {
+        if (ticket == null || user == null || !user.IsAuthenticated || user.UserId is not > 0)
+            return false;
+        return user.IsAdminVira ||
+            user.HasRole(1) && ticket.UserId == user.UserId && ticket.StatusId == 2;
+    }
+
     public static bool CanView(Ticket? ticket, ICurrentUserService? user)
     {
         if (ticket == null || user == null)
