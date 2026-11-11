@@ -30,14 +30,8 @@ public class DownloadMessageFile
                     return null;
 
                 var ticket = await ticketService.GetAsync(a => a.Id == massage.TicketId);
-                if (ticket != null)
-                {
-                    if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz && ticket.UserId != currentUser.UserId && !currentUser.HasRole(ticket.CurrentRoleId))
-                    {
-                        logger.LogWarning("Unauthorized message file download attempt by user {UserId} for massage {MassageId}", currentUser.UserId, request.massageId);
-                        return null;
-                    }
-                }
+                if (!TicketAccessPolicy.CanView(ticket, currentUser))
+                    return null;
 
                 string safeFileName = Path.GetFileName(massage.FilePath);
                 string basePath = Path.Combine(Directory.GetCurrentDirectory(), "Files");

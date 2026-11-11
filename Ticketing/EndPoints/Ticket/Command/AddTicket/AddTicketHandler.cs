@@ -24,20 +24,20 @@ public class AddTicketHandler
         {
             try
             {
-                // Server-side identity enforcement: Do not trust browser-supplied UserId/Username blindly
-                if (currentUser.IsAuthenticated && currentUser.UserId.HasValue)
-                {
-                    if (!currentUser.IsAdminVira)
-                    {
-                        request.UserId = currentUser.UserId.Value;
-                        if (!string.IsNullOrEmpty(currentUser.Username))
-                            request.Username = currentUser.Username;
-                    }
-                    if (request.RoleId <= 0 || (!currentUser.HasRole(request.RoleId) && !currentUser.IsAdminVira && !currentUser.IsAdminTaz))
-                    {
-                        request.RoleId = currentUser.DefaultRoleId ?? 2;
-                    }
-                }
+                if (!currentUser.IsAuthenticated || currentUser.UserId is not > 0)
+                    return Results.Unauthorized();
+                if (currentUser.RoleIds.All(r => r == 3))
+                    return Results.Json(new { message = "نقش ناظر فقط دسترسی مشاهده دارد." }, statusCode: 403);
+                if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 1000 ||
+                    string.IsNullOrWhiteSpace(request.Text) || request.Text.Length > 100000 ||
+                    (int)request.Priority is < 1 or > 3 || (int)request.RequestType is < 1 or > 2)
+                    return Results.BadRequest(new { message = "عنوان، متن، اولویت و نوع درخواست معتبر الزامی است." });
+                if (await projectService.GetAsync(p => p.Id == request.ProjectId) == null)
+                    return Results.BadRequest(new { message = "سامانه انتخاب‌شده وجود ندارد." });
+                request.UserId = currentUser.UserId.Value;
+                request.Username = currentUser.Username ?? "";
+                if (!currentUser.HasRole(request.RoleId))
+                    request.RoleId = currentUser.DefaultRoleId ?? 1;
 
                 string fileName = "";
                 if (request.File != null && request.File.Length > 0)
@@ -58,13 +58,12 @@ public class AddTicketHandler
                     }
                     else
                     {
-                        _logger.LogWarning("File rejected due to disallowed extension: {Extension}", ext);
+                        return Results.BadRequest(new { message = "نوع فایل مجاز نیست." });
                     }
                 }
 
                 var persiandate = new System.Globalization.PersianCalendar();
-                var getlastticket = await ticketService.ListAsync(null);
-                var rowNumber = (getlastticket.Count == 0 ? 1 : getlastticket.Last().TicketRowNumber + 1);
+                var rowNumber = await ticketService.GetNextRowNumberAsync();
                 if (request.RequestType == RequestType.Support)
                 {
                     request.IsSchedule = IsSchedule.Support;
@@ -93,7 +92,7 @@ public class AddTicketHandler
                     TicketNumber = persiandate.GetYear(DateTime.Now).ToString() +
                                    persiandate.GetMonth(DateTime.Now).ToString("00") +
                                    persiandate.GetDayOfMonth(DateTime.Now).ToString("00") +
-                                   rowNumber.Value.ToString("000#"),
+                                   rowNumber.ToString("000#"),
                     DeveloperId = Developer.unknown,
                     IsSchedule = request.IsSchedule ?? IsSchedule.Support
                 };
@@ -116,9 +115,8 @@ public class AddTicketHandler
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in AddTicketHandler Handle");
+                return Results.Json(new { message = "خطا در ثبت تیکت: " + ex.Message }, statusCode: 500);
             }
-
-            return null;
         }
     }
 }

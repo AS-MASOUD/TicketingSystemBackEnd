@@ -211,3 +211,23 @@ public class AppSettingDto
     public string? Description { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+public class UserStatsDto
+{
+    public int TotalUsers { get; set; }
+    public int ActiveUsers { get; set; }
+    public int InactiveUsers { get; set; }
+}
+
+public class AddUserRoleRequest
+{
+    public int RoleId { get; set; }
+}
+
+public class UserRoleItemDto
+{
+    public int RoleId { get; set; }
+    public string RoleName { get; set; } = string.Empty;
+    public string RoleDisplayName { get; set; } = string.Empty;
+    public bool IsDefault { get; set; }
+}

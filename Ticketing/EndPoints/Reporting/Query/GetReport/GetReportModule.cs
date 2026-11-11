@@ -14,9 +14,11 @@ public class GetReportModule : ICarterModule
                 async (IMediator mediator, [AsParameters] GetReportQuery query,
                     CancellationToken cancellationToken) =>
                 {
-                    return await mediator.Send(query, cancellationToken);
+                    var report = await mediator.Send(query, cancellationToken);
+                    if (report == null) return Results.BadRequest(new { message = "فیلترهای گزارش معتبر نیستند." });
+                    return Results.File(report.FileContents, report.ContentType, report.FileDownloadName);
                 })
-            .RequireAuthorization()
+            .RequireAuthorization(policy => policy.RequireRole("4", "5"))
             .WithOpenApi()
             .WithTags("Report")
             .Produces<FileContentResult>();

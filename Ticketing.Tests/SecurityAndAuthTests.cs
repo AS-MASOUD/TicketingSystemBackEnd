@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Ticketing.Tests;
 
+[Collection("Restored database")]
 public class SecurityAndAuthTests
 {
     private const string ConnectionString = "Data Source=.;Initial Catalog=Ticketing_Dev_Restored;Integrated Security=True;TrustServerCertificate=True;";

@@ -23,19 +23,13 @@ public class GetTicketMassageListHandler
             {
                 var ticketinfo = await ticketService.GetAsync(a => a.Id == request.TicketId);
                 if (ticketinfo == null)
-                    return null;
+                    return Results.NotFound(new { message = "تیکت یافت نشد." });
 
                 // Server-side authorization check:
-                // User can view ticket details if they are adminVira (5), adminTaz (4), the creator, or assigned to current role
-                if (currentUser.IsAuthenticated)
+                if (!TicketAccessPolicy.CanView(ticketinfo, currentUser))
                 {
-                    if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz &&
-                        ticketinfo.UserId != currentUser.UserId &&
-                        !currentUser.HasRole(ticketinfo.CurrentRoleId))
-                    {
-                        _logger.LogWarning("Unauthorized access attempt to ticket {TicketId} by user {UserId}", request.TicketId, currentUser.UserId);
-                        return null;
-                    }
+                    _logger.LogWarning("Unauthorized access attempt to ticket {TicketId} by user {UserId}", request.TicketId, currentUser.UserId);
+                    return Results.Json(new { message = "دسترسی به این تیکت مجاز نیست." }, statusCode: 403);
                 }
 
                 var liststatus = await statusService.ListAsync(null);
@@ -54,6 +48,13 @@ public class GetTicketMassageListHandler
 
                 return new
                 {
+                    permissions = new {
+                        canReply = TicketAccessPolicy.CanReply(ticketinfo, currentUser),
+                        canEdit = TicketAccessPolicy.CanEdit(ticketinfo, currentUser),
+                        canAssign = TicketAccessPolicy.CanAssign(ticketinfo, currentUser),
+                        allowedStatuses = Enumerable.Range(1, 9).Where(id => TicketAccessPolicy.CanChangeStatus(ticketinfo, currentUser, id)).ToArray(),
+                        allowedDestinations = new[] { 4, 5 }.Where(id => TicketAccessPolicy.CanRoute(ticketinfo, currentUser, id)).ToArray()
+                    },
                     ticketInfo = new
                     {
                         Id = ticketinfo.Id,

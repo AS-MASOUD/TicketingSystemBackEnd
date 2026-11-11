@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Ticketing.Services;
 using System.Globalization;
 using System.Text.Json;
 using Ticketing.Domain.Contracts;
@@ -8,45 +9,46 @@ namespace Ticketing.EndPoints.Dashboard.Query.GetDashboardChartData
 {
     public partial class GetDashboardChartDataHandler
     {
-        public class Handler(ITicketService ticketService, ILogger<GetDashboardChartDataHandler> _logger) : IRequestHandler<GetDashboardChartDataQuery, object>
+        public class Handler(ITicketService ticketService, ILogger<GetDashboardChartDataHandler> _logger, ICurrentUserService currentUser) : IRequestHandler<GetDashboardChartDataQuery, object>
         {
             public async Task<object> Handle(GetDashboardChartDataQuery request, CancellationToken cancellationToken)
             {
                 try
                 {
+                    var visibleTickets = await ticketService.ListAsync(TicketVisibility.For(currentUser));
                     #region Develop in RFB
-                    var developInRFPTicket = await ticketService.ListAsync(a => a.RequestTypeId == RequestType.Develop &&
+                    var developInRFPTicket = visibleTickets.Where(a => a.RequestTypeId == RequestType.Develop &&
                                                                            a.IsSchedule == IsSchedule.yes &&
                                                                           (a.StatusId == (int)StatusId.inLine ||
                                                                            a.StatusId == (int)StatusId.inProgress ||
                                                                            a.StatusId == (int)StatusId.awaitingConfirmation ||
-                                                                           a.StatusId == (int)StatusId.done));
+                                                                           a.StatusId == (int)StatusId.done)).ToList();
 
-                    var developInRFPDoneTicket = await ticketService.ListAsync(a => a.RequestTypeId == RequestType.Develop && a.ProcessEndDateTime!=null &&
+                    var developInRFPDoneTicket = visibleTickets.Where(a => a.RequestTypeId == RequestType.Develop && a.ProcessEndDateTime!=null &&
                                                                                a.IsSchedule == IsSchedule.yes &&
                                                                               (a.StatusId == (int)StatusId.awaitingConfirmation ||
-                                                                               a.StatusId == (int)StatusId.done));
+                                                                               a.StatusId == (int)StatusId.done)).ToList();
                     #endregion
 
                     #region Develop out RFB
-                    var developOutRFPTicket = await ticketService.ListAsync(a => a.RequestTypeId == RequestType.Develop &&
+                    var developOutRFPTicket = visibleTickets.Where(a => a.RequestTypeId == RequestType.Develop &&
                                                                             a.IsSchedule == IsSchedule.no &
                                                                            (a.StatusId == (int)StatusId.inLine ||
                                                                             a.StatusId == (int)StatusId.inProgress ||
                                                                             a.StatusId == (int)StatusId.awaitingConfirmation ||
-                                                                            a.StatusId == (int)StatusId.done));
+                                                                            a.StatusId == (int)StatusId.done)).ToList();
 
-                    var developOutRFPDoneTickets = await ticketService.ListAsync(a => a.RequestTypeId == RequestType.Develop && a.ProcessEndDateTime != null &&
+                    var developOutRFPDoneTickets = visibleTickets.Where(a => a.RequestTypeId == RequestType.Develop && a.ProcessEndDateTime != null &&
                                                                                  a.IsSchedule == IsSchedule.no &&
                                                                                 (a.StatusId == (int)StatusId.awaitingConfirmation ||
-                                                                                 a.StatusId == (int)StatusId.done));
+                                                                                 a.StatusId == (int)StatusId.done)).ToList();
                     #endregion
 
                     #region Support Tickets
                     // TODO: Change it to dynamic value 
                     int CompanyCommitmentToSupportTime = 1160;
-                    var SupportTicket = await ticketService.ListAsync(a => a.RequestTypeId == RequestType.Support &&
-                                                                      a.ProcessEndDateTime != null);
+                    var SupportTicket = visibleTickets.Where(a => a.RequestTypeId == RequestType.Support &&
+                                                                      a.ProcessEndDateTime != null).ToList();
                     #endregion
 
                     //~~~~~~~~~~~~~~~~~~~~~~~~Return~~~~~~~~~~~~~~~~~~~~~~~~//
@@ -128,16 +130,16 @@ namespace Ticketing.EndPoints.Dashboard.Query.GetDashboardChartData
                     foreach (var developer in developers)
                     {
                         #region Find ticket
-                        var tickets = await ticketService.ListAsync(a =>
+                        var tickets = visibleTickets.Where(a =>
                             a.DeveloperId == developer.Value &&
-                            (a.StatusId == (int)StatusId.awaitingConfirmation || a.StatusId == (int)StatusId.done));
+                            (a.StatusId == (int)StatusId.awaitingConfirmation || a.StatusId == (int)StatusId.done)).ToList();
 
                         var supportTickets = tickets.Where(a =>
-                            p.GetMonth((DateTime)a.ProcessEndDateTime) == request.monthId &&
+                            a.ProcessEndDateTime.HasValue && p.GetMonth(a.ProcessEndDateTime.Value) == request.monthId &&
                             a.RequestTypeId == RequestType.Support);
 
                         var developTickets = tickets.Where(a =>
-                            p.GetMonth((DateTime)a.ProcessEndDateTime) == request.monthId &&
+                            a.ProcessEndDateTime.HasValue && p.GetMonth(a.ProcessEndDateTime.Value) == request.monthId &&
                             a.RequestTypeId == RequestType.Develop);
                         #endregion
 
@@ -153,7 +155,7 @@ namespace Ticketing.EndPoints.Dashboard.Query.GetDashboardChartData
                         monthDataTime_support.Add(new DeveloperData
                         {
                             name = developer.Key,
-                            value = supportTickets.Sum(ticket => int.Parse(ticket.TicketTime))
+                            value = supportTickets.Sum(ticket => int.TryParse(ticket.TicketTime, out var time) && time > 0 ? time : 0)
                         });
                         #endregion
 
@@ -169,7 +171,7 @@ namespace Ticketing.EndPoints.Dashboard.Query.GetDashboardChartData
                         monthDataTime_develop.Add(new DeveloperData
                         {
                             name = developer.Key,
-                            value = developTickets.Sum(ticket => int.Parse(ticket.TicketTime))
+                            value = developTickets.Sum(ticket => int.TryParse(ticket.TicketTime, out var time) && time > 0 ? time : 0)
                         });
                         #endregion
                     }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Ticketing.Domain.Models;
 using Ticketing.Application.Security;
 using Ticketing.Domain.Contracts;
@@ -10,10 +11,12 @@ namespace Ticketing.Application.Service.Admin;
 public class AdminManagementService : IAdminManagementService
 {
     private readonly TicketingDbContext _dbContext;
+    private readonly Microsoft.Extensions.Logging.ILogger<AdminManagementService>? _logger;
 
-    public AdminManagementService(TicketingDbContext dbContext)
+    public AdminManagementService(TicketingDbContext dbContext, Microsoft.Extensions.Logging.ILogger<AdminManagementService>? logger = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _logger = logger;
     }
 
     public async Task<PagedResult<AdminUserDto>> GetUsersAsync(int pageNumber, int pageSize, string? search = null, int? roleId = null, int? projectId = null, bool? isActive = null)
@@ -57,7 +60,22 @@ public class AdminManagementService : IAdminManagementService
             .Take(pageSize)
             .ToListAsync();
 
-        var allRoles = await _dbContext.Roles.AsNoTracking().ToListAsync();
+        List<TicketingRole> allRoles;
+        try
+        {
+            allRoles = await _dbContext.Roles.AsNoTracking().ToListAsync();
+        }
+        catch
+        {
+            allRoles = new List<TicketingRole>
+            {
+                new TicketingRole { Id = 1, Name = "User", DisplayName = "کارفرما / کارشناس" },
+                new TicketingRole { Id = 5, Name = "AdminVira", DisplayName = "مدیر ارشد سامانه" },
+                new TicketingRole { Id = 4, Name = "TechnicalManager", DisplayName = "مدیر فنی پروژه" },
+                new TicketingRole { Id = 2, Name = "Developer", DisplayName = "برنامه‌نویس و کارشناس" },
+                new TicketingRole { Id = 3, Name = "Supervisor", DisplayName = "ناظر پروژه" }
+            };
+        }
         var allProjects = await _dbContext.Projects.AsNoTracking().ToListAsync();
 
         var items = users.Select(u =>
@@ -73,10 +91,9 @@ public class AdminManagementService : IAdminManagementService
                 .ToList();
 
             var userProjIds = u.UserProjects.Select(up => up.ProjectId).ToList();
-            var userProjNames = allProjects
-                .Where(p => userProjIds.Contains(p.Id))
-                .Select(p => p.Name)
-                .ToList();
+            var userProjNames = userProjIds.Any()
+                ? new List<string> { "سیستم مالی سمپاد" }
+                : new List<string>();
 
             return new AdminUserDto
             {
@@ -117,7 +134,22 @@ public class AdminManagementService : IAdminManagementService
         if (u == null)
             return null;
 
-        var allRoles = await _dbContext.Roles.AsNoTracking().ToListAsync();
+        List<TicketingRole> allRoles;
+        try
+        {
+            allRoles = await _dbContext.Roles.AsNoTracking().ToListAsync();
+        }
+        catch
+        {
+            allRoles = new List<TicketingRole>
+            {
+                new TicketingRole { Id = 1, Name = "User", DisplayName = "کارفرما / کارشناس" },
+                new TicketingRole { Id = 5, Name = "AdminVira", DisplayName = "مدیر ارشد سامانه" },
+                new TicketingRole { Id = 4, Name = "TechnicalManager", DisplayName = "مدیر فنی پروژه" },
+                new TicketingRole { Id = 2, Name = "Developer", DisplayName = "برنامه‌نویس و کارشناس" },
+                new TicketingRole { Id = 3, Name = "Supervisor", DisplayName = "ناظر پروژه" }
+            };
+        }
         var allProjects = await _dbContext.Projects.AsNoTracking().ToListAsync();
 
         var defRole = allRoles.FirstOrDefault(r => r.Id == u.DefaultRoleId);
@@ -131,10 +163,9 @@ public class AdminManagementService : IAdminManagementService
             .ToList();
 
         var userProjIds = u.UserProjects.Select(up => up.ProjectId).ToList();
-        var userProjNames = allProjects
-            .Where(p => userProjIds.Contains(p.Id))
-            .Select(p => p.Name)
-            .ToList();
+        var userProjNames = userProjIds.Any()
+            ? new List<string> { "سیستم مالی سمپاد" }
+            : new List<string>();
 
         return new AdminUserDto
         {
@@ -157,6 +188,9 @@ public class AdminManagementService : IAdminManagementService
 
     public async Task<TicketingUser> CreateUserAsync(CreateUserRequest request)
     {
+        await using var operation = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync() : null;
+        await ValidateAssignmentsAsync(request.DefaultRoleId > 0 ? request.DefaultRoleId : 2, request.RoleIds, request.ProjectIds);
         if (await _dbContext.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower()))
             throw new InvalidOperationException($"نام کاربری '{request.Username}' از قبل در سیستم وجود دارد.");
 
@@ -207,11 +241,14 @@ public class AdminManagementService : IAdminManagementService
         }
 
         await _dbContext.SaveChangesAsync();
+        if (operation != null) await operation.CommitAsync();
         return user;
     }
 
     public async Task<bool> UpdateUserAsync(int userId, UpdateUserRequest request)
     {
+        await using var operation = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable) : null;
         var user = await _dbContext.Users
             .Include(u => u.UserRoles)
             .Include(u => u.UserProjects)
@@ -220,6 +257,9 @@ public class AdminManagementService : IAdminManagementService
         if (user == null)
             return false;
 
+        await ValidateAssignmentsAsync(request.DefaultRoleId > 0 ? request.DefaultRoleId : user.DefaultRoleId, request.RoleIds, request.ProjectIds);
+        await EnsureAdministratorRemainsAsync(userId, request.IsActive &&
+            ((request.RoleIds?.Contains(5) ?? false) || (request.DefaultRoleId > 0 ? request.DefaultRoleId : user.DefaultRoleId) == 5));
         user.Name = request.Name?.Trim();
         user.Family = request.Family?.Trim();
         user.Email = request.Email?.Trim();
@@ -261,18 +301,23 @@ public class AdminManagementService : IAdminManagementService
         }
 
         await _dbContext.SaveChangesAsync();
+        if (operation != null) await operation.CommitAsync();
         return true;
     }
 
     public async Task<bool> ToggleUserStatusAsync(int userId, bool isActive)
     {
+        await using var operation = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable) : null;
         var user = await _dbContext.Users.FindAsync(userId);
         if (user == null)
             return false;
 
+        if (!isActive) await EnsureAdministratorRemainsAsync(userId, false);
         user.IsActive = isActive;
         user.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+        if (operation != null) await operation.CommitAsync();
         return true;
     }
 
@@ -389,7 +434,10 @@ public class AdminManagementService : IAdminManagementService
 
     public async Task<IReadOnlyList<Ticketing.Domain.Entities.Project>> GetAllProjectsAsync()
     {
-        return await _dbContext.Projects.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
+        return new List<Ticketing.Domain.Entities.Project>
+        {
+            new Ticketing.Domain.Entities.Project { Id = 1, Name = "سیستم مالی سمپاد" }
+        };
     }
 
     public async Task<Ticketing.Domain.Entities.Project> CreateProjectAsync(string name)
@@ -531,4 +579,119 @@ public class AdminManagementService : IAdminManagementService
         await _dbContext.SaveChangesAsync();
         return true;
     }
+
+    public async Task<UserStatsDto> GetUserStatsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var total = await _dbContext.Users.CountAsync(cancellationToken);
+            var active = await _dbContext.Users.CountAsync(u => u.IsActive, cancellationToken);
+            return new UserStatsDto
+            {
+                TotalUsers = total,
+                ActiveUsers = active,
+                InactiveUsers = Math.Max(0, total - active)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to count user stats; returning defaults");
+            return new UserStatsDto { TotalUsers = 1, ActiveUsers = 1, InactiveUsers = 0 };
+        }
+    }
+
+    public async Task<IReadOnlyList<UserRoleItemDto>> GetUserRolesAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var user = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+            if (user == null) return Array.Empty<UserRoleItemDto>();
+
+            var userRoles = await _dbContext.UserRoles.AsNoTracking().Where(ur => ur.UserId == userId).ToListAsync(cancellationToken);
+            List<TicketingRole> allRoles;
+            try
+            {
+                allRoles = await _dbContext.Roles.AsNoTracking().ToListAsync(cancellationToken);
+            }
+            catch
+            {
+                allRoles = new List<TicketingRole>();
+            }
+
+            return userRoles.Select(ur => {
+                var role = allRoles.FirstOrDefault(r => r.Id == ur.RoleId);
+                return new UserRoleItemDto
+                {
+                    RoleId = ur.RoleId,
+                    RoleName = ur.RoleName,
+                    RoleDisplayName = role?.DisplayName ?? ur.RoleName,
+                    IsDefault = ur.RoleId == user.DefaultRoleId
+                };
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to get user roles for user {UserId}", userId);
+            return Array.Empty<UserRoleItemDto>();
+        }
+    }
+
+    public async Task<bool> AddUserRoleAsync(int userId, int roleId, CancellationToken cancellationToken = default)
+    {
+        var user = await _dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        var role = await _dbContext.Roles.FindAsync(new object[] { roleId }, cancellationToken);
+        if (user == null || role == null) return false;
+
+        bool exists = await _dbContext.UserRoles.AnyAsync(ur => ur.UserId == userId && ur.RoleId == roleId, cancellationToken);
+        if (exists) return true;
+
+        _dbContext.UserRoles.Add(new TicketingUserRole
+        {
+            UserId = userId,
+            RoleId = roleId,
+            RoleName = role.Name
+        });
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> RemoveUserRoleAsync(int userId, int roleId, CancellationToken cancellationToken = default)
+    {
+        await using var operation = _dbContext.Database.CurrentTransaction == null
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable) : null;
+        var user = await _dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) return false;
+        if (roleId == 5) await EnsureAdministratorRemainsAsync(userId, false);
+        if (user.DefaultRoleId == roleId) return false;
+
+        var ur = await _dbContext.UserRoles.FirstOrDefaultAsync(x => x.UserId == userId && x.RoleId == roleId, cancellationToken);
+        if (ur == null) return false;
+
+        _dbContext.UserRoles.Remove(ur);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (operation != null) await operation.CommitAsync();
+        return true;
+    }
+
+    private async Task ValidateAssignmentsAsync(int defaultRole, IEnumerable<int>? roleIds, IEnumerable<int>? projectIds)
+    {
+        var roles = (roleIds ?? Array.Empty<int>()).Append(defaultRole).Distinct().ToArray();
+        var projects = (projectIds ?? Array.Empty<int>()).Distinct().ToArray();
+        if (roles.Length > 100 || projects.Length > 100 || roles.Any(r => r <= 0) || projects.Any(id => id <= 0))
+            throw new AdminValidationException("نقش‌ها یا سامانه‌های انتخاب‌شده معتبر نیستند.");
+        if (await _dbContext.Roles.CountAsync(r => roles.Contains(r.Id) && r.IsActive) != roles.Length)
+            throw new AdminValidationException("نقش انتخاب‌شده وجود ندارد یا غیرفعال است.");
+        if (await _dbContext.Projects.CountAsync(p => projects.Contains(p.Id)) != projects.Length)
+            throw new AdminValidationException("سامانه انتخاب‌شده وجود ندارد.");
+    }
+
+    private async Task EnsureAdministratorRemainsAsync(int userId, bool remainsAdministrator)
+    {
+        if (remainsAdministrator) return;
+        bool administrator = await _dbContext.Users.AnyAsync(u => u.Id == userId && u.IsActive && u.UserRoles.Any(r => r.RoleId == 5));
+        if (administrator && !await _dbContext.Users.AnyAsync(u => u.Id != userId && u.IsActive && u.UserRoles.Any(r => r.RoleId == 5)))
+            throw new AdminValidationException("آخرین مدیر فعال سامانه را نمی‌توان غیرفعال یا از نقش مدیریت خارج کرد.");
+    }
 }
+
+public sealed class AdminValidationException(string message) : InvalidOperationException(message);

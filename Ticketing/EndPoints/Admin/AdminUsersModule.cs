@@ -16,8 +16,15 @@ public class AdminUsersModule : ICarterModule
             .WithTags("Admin Users")
             .RequireAuthorization();
 
+        group.AddEndpointFilter(async (context, next) => {
+            try { return await next(context); }
+            catch (Ticketing.Application.Service.Admin.AdminValidationException ex) {
+                return Results.BadRequest(new { isSuccess = false, message = ex.Message });
+            }
+        });
+
         // 1. Get users paged & filtered
-        group.MapGet("/", async (
+        group.MapGet("", async (
             int? page,
             int? pageSize,
             string? search,
@@ -55,7 +62,7 @@ public class AdminUsersModule : ICarterModule
         });
 
         // 3. Create user
-        group.MapPost("/", async (
+        group.MapPost("", async (
             CreateUserRequest request,
             IAdminManagementService adminService,
             IPermissionService permService,
@@ -142,6 +149,75 @@ public class AdminUsersModule : ICarterModule
 
             await auditService.LogAsync("ResetPassword", "TicketingUser", id.ToString(), $"بازنشانی کلمه عبور کاربر شناسه {id} توسط ادمین", currentUser.UserId, currentUser.Username);
             return Results.Ok(new { isSuccess = true, message = "کلمه عبور کاربر با موفقیت بازنشانی شد." });
+        });
+
+        // 7. Total users statistics
+        var totalUsersHandler = async (
+            IAdminManagementService adminService,
+            IPermissionService permService,
+            ICurrentUserService currentUser) =>
+        {
+            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "users.view"))
+                return Results.Forbid();
+
+            var stats = await adminService.GetUserStatsAsync();
+            return Results.Ok(new { isSuccess = true, data = stats });
+        };
+        group.MapGet("/total", totalUsersHandler);
+        group.MapGet("/stats", totalUsersHandler);
+
+        // 8. Get roles of a user
+        group.MapGet("/{id:int}/roles", async (
+            int id,
+            IAdminManagementService adminService,
+            IPermissionService permService,
+            ICurrentUserService currentUser) =>
+        {
+            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "users.view"))
+                return Results.Forbid();
+
+            var roles = await adminService.GetUserRolesAsync(id);
+            return Results.Ok(new { isSuccess = true, data = roles });
+        });
+
+        // 9. Add a role to a user
+        group.MapPost("/{id:int}/roles", async (
+            int id,
+            AddUserRoleRequest request,
+            IAdminManagementService adminService,
+            IPermissionService permService,
+            IAuditService auditService,
+            ICurrentUserService currentUser) =>
+        {
+            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "users.update"))
+                return Results.Forbid();
+
+            bool added = await adminService.AddUserRoleAsync(id, request.RoleId);
+            if (!added)
+                return Results.BadRequest(new { isSuccess = false, message = "نقش انتخابی معتبر نیست یا کاربر یافت نشد." });
+
+            await auditService.LogAsync("AddUserRole", "TicketingUserRole", id.ToString(), $"افزودن نقش {request.RoleId} به کاربر {id}", currentUser.UserId, currentUser.Username);
+            return Results.Ok(new { isSuccess = true, message = "نقش با موفقیت به کاربر اضافه شد." });
+        });
+
+        // 10. Remove a role from a user
+        group.MapDelete("/{id:int}/roles/{roleId:int}", async (
+            int id,
+            int roleId,
+            IAdminManagementService adminService,
+            IPermissionService permService,
+            IAuditService auditService,
+            ICurrentUserService currentUser) =>
+        {
+            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "users.update"))
+                return Results.Forbid();
+
+            bool removed = await adminService.RemoveUserRoleAsync(id, roleId);
+            if (!removed)
+                return Results.BadRequest(new { isSuccess = false, message = "امکان حذف نقش پیش‌فرض اصلی وجود ندارد یا نقش در لیست کاربر نیست." });
+
+            await auditService.LogAsync("RemoveUserRole", "TicketingUserRole", id.ToString(), $"حذف نقش {roleId} از کاربر {id}", currentUser.UserId, currentUser.Username);
+            return Results.Ok(new { isSuccess = true, message = "نقش با موفقیت از کاربر حذف شد." });
         });
     }
 }

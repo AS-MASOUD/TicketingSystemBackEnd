@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Ticketing.Domain.Entities;
 using Ticketing.Infrastructure.EntityTypeConfiguration;
 
@@ -16,27 +16,7 @@ public class TicketingDbContext : DbContext
            new Project
            {
                Id = 1,
-               Name = "سامانه مدیریت پرونده ها",
-           }, new Project
-           {
-               Id = 2,
-               Name = "سامانه میز خدمت",
-           }, new Project
-           {
-               Id = 3,
-               Name = "سامانه امحا",
-           }, new Project
-           {
-               Id = 4,
-               Name = "سامانه تبادل اطلاعات",
-           }, new Project
-           {
-               Id = 5,
-               Name = "سامانه هوش تجاری",
-           }, new Project
-           {
-               Id = 6,
-               Name = "زیر ساخت",
+               Name = "سیستم مالی سمپاد",
            }
        );
 

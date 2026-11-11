@@ -36,18 +36,17 @@ public class AdminAnalyticsService : IAdminAnalyticsService
         int open = await query.CountAsync(t => t.StatusId == 2 || t.StatusId == 3 || t.StatusId == 7 || t.StatusId == 8);
         int inProgress = await query.CountAsync(t => t.StatusId == 8 || t.StatusId == 3);
         int resolved = await query.CountAsync(t => t.StatusId == 1 || t.StatusId == 6);
-        int closed = await query.CountAsync(t => t.StatusId == 1 || (t.CloseDate > DateTime.MinValue && t.CloseDate < DateTime.UtcNow));
+        int closed = await query.CountAsync(t => t.StatusId == 1 || t.StatusId == 4);
 
         // Overdue: Open tickets created more than 48h ago
         var cutoff = DateTime.UtcNow.AddHours(-48);
         int overdue = await query.CountAsync(t => (t.StatusId == 2 || t.StatusId == 3 || t.StatusId == 7 || t.StatusId == 8) && t.InsertDate < cutoff);
-        int unassigned = await query.CountAsync(t => (int)t.DeveloperId == 0 || t.CurrentRoleId == 0);
+        int unassigned = await query.CountAsync(t => (int)t.DeveloperId == 0 || (int)t.DeveloperId == 10);
 
-        // Average resolution time
+        // Average resolution time (using tickets with real close date > insert date)
         var resolvedTickets = await query
-            .Where(t => (t.StatusId == 1 || t.StatusId == 6) && t.CloseDate > t.InsertDate)
-            .Select(t => new { t.InsertDate, t.CloseDate })
-            .Take(500)
+            .Where(t => (t.StatusId == 1 || t.StatusId == 6) && (t.ProcessEndDateTime ?? t.CloseDate) >= t.InsertDate)
+            .Select(t => new { t.InsertDate, CloseDate = t.ProcessEndDateTime ?? t.CloseDate })
             .ToListAsync();
 
         double avgResolution = 0;
@@ -55,12 +54,23 @@ public class AdminAnalyticsService : IAdminAnalyticsService
         {
             avgResolution = Math.Round(resolvedTickets.Average(t => (t.CloseDate - t.InsertDate).TotalHours), 1);
         }
-        else
-        {
-            avgResolution = 24.0; // Benchmark fallback
-        }
 
-        double slaCompliance = total > 0 ? Math.Round((double)(total - overdue) / total * 100, 1) : 100.0;
+        // Real average first response time calculated from Massages
+        double avgFirstResponse = 0;
+        var firstMessages = await _dbContext.Massages.AsNoTracking()
+            .Where(m => query.Any(t => t.Id == m.TicketId && m.UserId != t.UserId && m.InsertDate >= t.InsertDate))
+            .GroupBy(m => m.TicketId)
+            .Select(g => new { TicketId = g.Key, FirstMsg = g.Min(m => m.InsertDate) })
+            .ToListAsync();
+        var responseTicketIds = firstMessages.Select(m => m.TicketId).ToList();
+        var ticketDates = await query.Where(t => responseTicketIds.Contains(t.Id))
+            .Select(t => new { t.Id, t.InsertDate }).ToListAsync();
+        var responseTimes = (from message in firstMessages
+                             join ticket in ticketDates on message.TicketId equals ticket.Id
+                             select (message.FirstMsg - ticket.InsertDate).TotalHours).ToList();
+        if (responseTimes.Count > 0) avgFirstResponse = Math.Round(responseTimes.Average(), 1);
+
+        double slaCompliance = total > 0 ? Math.Round((double)(total - overdue) / total * 100, 1) : 0.0;
         int totalUsers = await _dbContext.Users.CountAsync();
         int activeProjects = await _dbContext.Projects.CountAsync();
 
@@ -74,7 +84,7 @@ public class AdminAnalyticsService : IAdminAnalyticsService
             OverdueTickets = overdue,
             UnassignedTickets = unassigned,
             AverageResolutionHours = avgResolution,
-            AverageFirstResponseHours = Math.Round(avgResolution * 0.15, 1),
+            AverageFirstResponseHours = avgFirstResponse,
             SlaComplianceRate = slaCompliance,
             TotalUsers = totalUsers,
             ActiveProjects = activeProjects
@@ -83,10 +93,13 @@ public class AdminAnalyticsService : IAdminAnalyticsService
 
     public async Task<IReadOnlyList<TicketTrendDto>> GetTicketTrendsAsync(int days = 30, int? projectId = null)
     {
-        var startDate = DateTime.UtcNow.Date.AddDays(-days);
+        days = Math.Clamp(days, 1, 365);
+        var endDate = DateTime.UtcNow.Date;
+        var startDate = endDate.AddDays(1 - days);
+
         var query = _dbContext.Tickets
             .AsNoTracking()
-            .Where(t => t.InsertDate >= startDate);
+            .Where(t => t.InsertDate >= startDate && t.InsertDate <= endDate.AddDays(1));
 
         if (projectId.HasValue && projectId.Value > 0)
             query = query.Where(t => t.ProjectId == projectId.Value);
@@ -96,7 +109,7 @@ public class AdminAnalyticsService : IAdminAnalyticsService
             .ToListAsync();
 
         var trends = new List<TicketTrendDto>();
-        for (int i = 0; i <= days; i++)
+        for (int i = 0; i < days; i++)
         {
             var date = startDate.AddDays(i);
             var dateStr = date.ToString("yyyy-MM-dd");
@@ -187,7 +200,7 @@ public class AdminAnalyticsService : IAdminAnalyticsService
             });
         }
 
-        return result;
+        return result.OrderByDescending(r => r.Count).ToList();
     }
 
     public async Task<SlaPerformanceDto> GetSlaPerformanceAsync(int? projectId = null)

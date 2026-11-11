@@ -23,16 +23,14 @@ public class AddMassageHandler
         {
             try
             {
-                // Enforce authenticated user identity
-                if (currentUser.IsAuthenticated && currentUser.UserId.HasValue)
-                {
-                    if (!currentUser.IsAdminVira)
-                    {
-                        request.UserId = currentUser.UserId.Value;
-                        if (!string.IsNullOrEmpty(currentUser.Username))
-                            request.Username = currentUser.Username;
-                    }
-                }
+                var ticket = await ticketService.GetAsync(t => t.Id == request.TicketId);
+                if (ticket == null) return Results.NotFound(new { message = "تیکت یافت نشد." });
+                if (!TicketAccessPolicy.CanReply(ticket, currentUser))
+                    return Results.Json(new { message = "ارسال پیام برای این تیکت مجاز نیست." }, statusCode: 403);
+                if (string.IsNullOrWhiteSpace(request.Text) && request.File?.Length is not > 0)
+                    return Results.BadRequest(new { message = "متن یا فایل پیام الزامی است." });
+                request.UserId = currentUser.UserId!.Value;
+                request.Username = currentUser.Username ?? "";
 
                 string fileName = "";
                 if (request.File != null && request.File.Length > 0)
@@ -55,7 +53,7 @@ public class AddMassageHandler
                     }
                     else
                     {
-                        _logger.LogWarning("Message attachment rejected due to disallowed extension: {Extension}", ext);
+                        return Results.BadRequest(new { message = "نوع فایل مجاز نیست." });
                     }
                 }
 

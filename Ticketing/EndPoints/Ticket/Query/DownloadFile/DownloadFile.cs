@@ -30,7 +30,7 @@ public class DownloadFile
                     return null;
 
                 // Authorization check: User can download if they are adminVira (5), adminTaz (4), or the ticket owner/assignee
-                if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz && ticket.UserId != currentUser.UserId && !currentUser.HasRole(ticket.CurrentRoleId))
+                if (!TicketAccessPolicy.CanView(ticket, currentUser))
                 {
                     logger.LogWarning("Unauthorized file download attempt by user {UserId} for ticket {TicketId}", currentUser.UserId, request.ticketId);
                     return null;

@@ -27,6 +27,12 @@ public class ChangeStatusHandler
                 if (findticket == null)
                     return null;
 
+                if (request.Status is < 1 or > 9)
+                    return Results.BadRequest(new { message = "وضعیت نامعتبر است." });
+                if (!TicketAccessPolicy.CanChangeStatus(findticket, currentUser, request.Status))
+                    return Results.Json(new { message = "این تغییر وضعیت برای شما مجاز نیست." }, statusCode: 403);
+                findticket.LastChangeDatetime = DateTime.Now;
+
                 if (request.Status == (int)StatusId.awaitingConfirmation || request.Status == (int)StatusId.awaitingRejecting)
                 {
                     if (findticket.ProcessEndDateTime == null)
@@ -47,7 +53,7 @@ public class ChangeStatusHandler
 
                 await ticketFlowService.AddAsync(new Domain.Entities.TicketFlow
                 {
-                    CurrentRoleId = findticket.InsertedRoleId,
+                    CurrentRoleId = findticket.CurrentRoleId,
                     InsertDate = DateTime.Now,
                     StatusId = findticket.StatusId,
                     Username = !string.IsNullOrEmpty(currentUser.Username) ? currentUser.Username : findticket.Username,

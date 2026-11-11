@@ -17,19 +17,19 @@ public class AdminManagementModule : ICarterModule
             .WithTags("Admin Teams")
             .RequireAuthorization();
 
-        teamGroup.MapGet("/", async (
+        teamGroup.MapGet("", async (
             IAdminManagementService service,
             IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "teams.manage"))
+            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "teams.view"))
                 return Results.Forbid();
 
             var teams = await service.GetTeamsAsync();
             return Results.Ok(new { isSuccess = true, data = teams });
         });
 
-        teamGroup.MapPost("/", async (
+        teamGroup.MapPost("", async (
             TeamDto dto,
             IAdminManagementService service,
             IPermissionService permService,
@@ -86,7 +86,7 @@ public class AdminManagementModule : ICarterModule
             .WithTags("Admin Projects")
             .RequireAuthorization();
 
-        projectGroup.MapGet("/", async (
+        var getProjectsHandler = async (
             IAdminManagementService service,
             IPermissionService permService,
             ICurrentUserService currentUser) =>
@@ -96,9 +96,16 @@ public class AdminManagementModule : ICarterModule
 
             var projects = await service.GetAllProjectsAsync();
             return Results.Ok(new { isSuccess = true, data = projects });
-        });
+        };
+        projectGroup.MapGet("", getProjectsHandler);
 
-        projectGroup.MapPost("/", async (
+        // Also alias /api/v1/projects for maximum frontend and proxy compatibility
+        var generalProjectGroup = app.MapGroup("/api/v1/projects")
+            .WithTags("Projects")
+            .RequireAuthorization();
+        generalProjectGroup.MapGet("", getProjectsHandler);
+
+        projectGroup.MapPost("", async (
             string name,
             IAdminManagementService service,
             IPermissionService permService,
@@ -143,7 +150,7 @@ public class AdminManagementModule : ICarterModule
             .WithTags("Admin SLA")
             .RequireAuthorization();
 
-        slaGroup.MapGet("/", async (
+        slaGroup.MapGet("", async (
             IAdminManagementService service,
             IPermissionService permService,
             ICurrentUserService currentUser) =>
@@ -155,7 +162,7 @@ public class AdminManagementModule : ICarterModule
             return Results.Ok(new { isSuccess = true, data = policies });
         });
 
-        slaGroup.MapPost("/", async (
+        slaGroup.MapPost("", async (
             SlaPolicyDto dto,
             IAdminManagementService service,
             IPermissionService permService,
@@ -212,20 +219,20 @@ public class AdminManagementModule : ICarterModule
             .WithTags("Admin Settings")
             .RequireAuthorization();
 
-        settingGroup.MapGet("/", async (
+        settingGroup.MapGet("", async (
             string? category,
             IAdminManagementService service,
             IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "settings.manage"))
+            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "settings.view"))
                 return Results.Forbid();
 
             var settings = await service.GetSettingsAsync(category);
             return Results.Ok(new { isSuccess = true, data = settings });
         });
 
-        settingGroup.MapPut("/", async (
+        settingGroup.MapPut("", async (
             List<AppSettingDto> settings,
             IAdminManagementService service,
             IPermissionService permService,
@@ -238,6 +245,18 @@ public class AdminManagementModule : ICarterModule
             bool updated = await service.UpdateSettingsAsync(settings);
             await auditService.LogAsync("UpdateSettings", "AppSettings", null, $"به‌روزرسانی تنظیمات سیستمی ({settings.Count} آیتم)", currentUser.UserId, currentUser.Username);
             return Results.Ok(new { isSuccess = true, message = "تنظیمات سامانه با موفقیت ذخیره شدند." });
+        });
+
+        // ------------------ LOOKUPS ------------------
+        var lookupGroup = app.MapGroup("/api/v1/admin/lookups")
+            .WithTags("Admin Lookups")
+            .RequireAuthorization();
+
+        lookupGroup.MapGet("/statuses", async (
+            IStatusService statusService) =>
+        {
+            var statuses = await statusService.ListAsync(null);
+            return Results.Ok(new { isSuccess = true, data = statuses });
         });
     }
 }

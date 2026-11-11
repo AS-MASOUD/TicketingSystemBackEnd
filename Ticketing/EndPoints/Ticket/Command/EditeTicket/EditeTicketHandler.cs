@@ -10,6 +10,7 @@ public class EditeTicketHandler
     public class Handler(
         ITicketService ticketService,
         ICurrentUserService currentUser,
+        IProjectService projectService,
         ILogger<EditeTicketHandler> _logger)
         : IRequestHandler<EditeTicketQuery, object?>
     {
@@ -19,14 +20,20 @@ public class EditeTicketHandler
             {
                 var findticket = await ticketService.GetAsync(a => a.Id == request.TicketId);
                 if (findticket == null)
-                    return null;
+                    return Results.NotFound(new { message = "تیکت یافت نشد." });
 
                 // Authorization check: only adminVira, adminTaz, or the ticket owner can edit
-                if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz && findticket.UserId != currentUser.UserId)
+                if (!TicketAccessPolicy.CanEdit(findticket, currentUser))
                 {
                     _logger.LogWarning("Unauthorized ticket edit attempt by user {UserId} for ticket {TicketId}", currentUser.UserId, request.TicketId);
-                    return null;
+                    return Results.Json(new { message = "ویرایش این تیکت مجاز نیست." }, statusCode: 403);
                 }
+
+                if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 1000 ||
+                    string.IsNullOrWhiteSpace(request.Text) || request.Text.Length > 100000 ||
+                    (int)request.Priority is < 1 or > 3 || (int)request.RequestType is < 1 or > 2 ||
+                    await projectService.GetAsync(p => p.Id == request.ProjectId) == null)
+                    return Results.BadRequest(new { message = "اطلاعات تیکت یا سامانه انتخاب‌شده معتبر نیست." });
 
                 if (request.Title != null && request.Title != findticket.Title) { findticket.Title = request.Title; }
 

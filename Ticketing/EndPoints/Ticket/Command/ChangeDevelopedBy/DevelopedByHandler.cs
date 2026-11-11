@@ -1,6 +1,7 @@
 using MediatR;
 using Ticketing.Domain.Contracts;
 using Ticketing.Services;
+using Ticketing.Domain.Enums;
 
 namespace Ticketing.EndPoints.Ticket.Command.ChangeDevelopedBy;
 
@@ -16,7 +17,7 @@ public class DevelopedByHandler
         {
             try
             {
-                if (!currentUser.IsAdminVira)
+                if (!currentUser.IsAdminVira && !currentUser.IsAdminTaz && !currentUser.HasRole(2))
                 {
                     _logger.LogWarning("Unauthorized attempt to change developer by user {UserId}", currentUser.UserId);
                     return null;
@@ -25,6 +26,12 @@ public class DevelopedByHandler
                 var ticketinfo = await ticketService.GetAsync(a => a.Id == request.TicketId);
                 if (ticketinfo == null)
                     return null;
+
+                if (!TicketAccessPolicy.CanAssign(ticketinfo, currentUser))
+                    return Results.Json(new { message = "دسترسی به تخصیص این تیکت مجاز نیست." }, statusCode: 403);
+                if (!DeveloperCatalog.IsAssignable(request.DeveloperId) ||
+                    !int.TryParse(request.Time, out int minutes) || minutes < 0 || minutes > 10000000)
+                    return Results.BadRequest(new { message = "برنامه‌نویس یا زمان واردشده معتبر نیست." });
 
                 ticketinfo.TicketTime = request.Time;
                 ticketinfo.DeveloperId = request.DeveloperId;

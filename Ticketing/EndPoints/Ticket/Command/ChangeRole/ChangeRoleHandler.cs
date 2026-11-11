@@ -27,7 +27,14 @@ public class ChangeRoleHandler
                 if (findticket == null)
                     return null;
 
-                if (findticket.CurrentRoleId == 5 && request.RoleId == 4)
+                if (request.RoleId is not (4 or 5))
+                    return Results.BadRequest(new { message = "مقصد گردش کار نامعتبر است." });
+                if (!TicketAccessPolicy.CanRoute(findticket, currentUser, request.RoleId))
+                    return Results.Json(new { message = "ارجاع این تیکت برای شما مجاز نیست." }, statusCode: 403);
+                findticket.LastChangeDatetime = DateTime.Now;
+                findticket.ProcessEndDateTime = null;
+
+                if (request.RoleId == 4)
                 {
                     findticket.LastChangeDatetime = DateTime.Now;
                     findticket.StatusId = 5;

@@ -5,11 +5,12 @@ using Ticketing.Domain.Contracts;
 using Ticketing.Domain.Entities;
 using Ticketing.EndPoints.Ticket.DTOs;
 using Ticketing.EndPoints.Ticket.Query.GetYearTickerInfo;
+using Ticketing.Services;
 
 namespace Ticketing.EndPoints.Ticket.Query.GetGroupTicketList;
 public class GetYearTickerInfoHandler
 {
-    public class Handler(ITicketService ticketService,IProjectService projectService ,IStatusService statusService,ILogger<GetYearTickerInfoHandler> _logger):IRequestHandler<GetYearTickerInfoQuery, object>
+    public class Handler(ITicketService ticketService,IProjectService projectService ,IStatusService statusService,ILogger<GetYearTickerInfoHandler> _logger, ICurrentUserService currentUser):IRequestHandler<GetYearTickerInfoQuery, object>
     {
         public async Task<object> Handle(GetYearTickerInfoQuery request, CancellationToken cancellationToken)
         {
@@ -20,26 +21,20 @@ public class GetYearTickerInfoHandler
                 var doingList = new List<int>();
                 var resultyear = new List<MonthTicketItem>();
                 var p = new PersianCalendar();
-                var result = await ticketService.ListAsync(a => (a.UserId == request.UserId) ||
-                                                                                    a.CurrentRoleId == request.RoleId);
-                if (request.RoleId == 4)
+                var year = request.Date ?? p.GetYear(DateTime.Today);
+                DateTime from, until;
+                try
                 {
-                     result = await ticketService.ListAsync(a => (int)a.RequestTypeId == request.RequestTypeId);
+                    from = p.ToDateTime(year, 1, 1, 0, 0, 0, 0);
+                    until = p.ToDateTime(year + 1, 1, 1, 0, 0, 0, 0);
                 }
-                else if (request.RoleId == 5)
+                catch (ArgumentOutOfRangeException)
                 {
-                    result = await ticketService.ListAsync(a => (a.StatusId != 2 || a.UserId == request.UserId) && (int)a.RequestTypeId == request.RequestTypeId);
+                    return Results.BadRequest(new { message = "سال شمسی معتبر نیست." });
                 }
-                else
-                {
-                    result = await ticketService.ListAsync(a => ((a.UserId == request.UserId) || a.CurrentRoleId == request.RoleId) && (int)a.RequestTypeId == request.RequestTypeId);
-                }
-                result = request.Date switch
-                {
-                    1403 => result.Where(a => (a.InsertDate >= new DateTime(2024, 3, 20) && a.InsertDate <= new DateTime(2025, 3, 20))).ToList(),
-                    1404 => result.Where(a => (a.InsertDate >= new DateTime(2025, 3, 21) && a.InsertDate <= new DateTime(2026, 3, 20))).ToList(),
-                    1405 => result.Where(a => (a.InsertDate >= new DateTime(2026, 3, 21) && a.InsertDate <= new DateTime(2027, 3, 20))).ToList(),
-                };
+                var result = (await ticketService.ListAsync(TicketVisibility.For(currentUser)))
+                    .Where(t => (request.RequestTypeId <= 0 || (int?)t.RequestTypeId == request.RequestTypeId)
+                        && t.InsertDate >= from && t.InsertDate < until).ToList();
 
                 for (var i = 1; i < 13; i++)
                 {

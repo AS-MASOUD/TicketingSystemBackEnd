@@ -47,6 +47,15 @@ namespace Ticketing.Application.Service.Ticket
             return await DbContext.Tickets.Where(expression).ToListAsync();
         }
 
+        public async Task<int> GetNextRowNumberAsync()
+        {
+            var max = await DbContext.Tickets
+                .AsNoTracking()
+                .Select(t => (int?)t.TicketRowNumber)
+                .MaxAsync();
+            return (max ?? 0) + 1;
+        }
+
         public async Task<Domain.Entities.Ticket> UpdateAsync(Domain.Entities.Ticket entity)
         {
             var result = DbContext.Tickets.Update(entity);

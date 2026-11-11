@@ -12,6 +12,10 @@ public interface IAdminManagementService
     Task<bool> UpdateUserAsync(int userId, UpdateUserRequest request);
     Task<bool> ToggleUserStatusAsync(int userId, bool isActive);
     Task<bool> ResetUserPasswordAsync(int userId, string newPassword);
+    Task<UserStatsDto> GetUserStatsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<UserRoleItemDto>> GetUserRolesAsync(int userId, CancellationToken cancellationToken = default);
+    Task<bool> AddUserRoleAsync(int userId, int roleId, CancellationToken cancellationToken = default);
+    Task<bool> RemoveUserRoleAsync(int userId, int roleId, CancellationToken cancellationToken = default);
 
     // Teams
     Task<IReadOnlyList<TeamDto>> GetTeamsAsync();

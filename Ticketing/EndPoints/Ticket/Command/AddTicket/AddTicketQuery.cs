@@ -10,9 +10,12 @@ public class AddTicketQuery:IRequest<object>
     public Priority Priority { get; set; }
     public RequestType RequestType { get; set; }
     public int ProjectId { get; set; }
+    [Ticketing.Services.CallerIdentity(Ticketing.Services.CallerIdentityKind.RoleId)]
     public int RoleId { get; set; }
     public IFormFile? File { get; set; }
+    [Ticketing.Services.CallerIdentity(Ticketing.Services.CallerIdentityKind.UserId)]
     public int UserId { get; set; }
+    [Ticketing.Services.CallerIdentity(Ticketing.Services.CallerIdentityKind.Username)]
     public string Username { get; set; }
     public IsSchedule? IsSchedule { get; set; }
 }

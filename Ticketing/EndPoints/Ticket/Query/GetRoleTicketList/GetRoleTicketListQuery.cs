@@ -2,10 +2,12 @@ using MediatR;
 
 namespace Ticketing.EndPoints.Ticket.Query.GetGroupTicketList;
 
-public class GetRoleTicketListQuery:IRequest<object>
+public class GetRoleTicketListQuery : IRequest<object?>
 {
-    public int RoleId { get; set; }
-    public int Status { get; set; }
-    public int UserId { get; set; }
-    public int RequestTypeId { set; get; }
+    [Ticketing.Services.CallerIdentity(Ticketing.Services.CallerIdentityKind.RoleId)]
+    public int? RoleId { get; set; }
+    public int? Status { get; set; }
+    [Ticketing.Services.CallerIdentity(Ticketing.Services.CallerIdentityKind.UserId)]
+    public int? UserId { get; set; }
+    public int? RequestTypeId { get; set; }
 }

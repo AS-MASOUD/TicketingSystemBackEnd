@@ -19,7 +19,8 @@ public record UserProfileResponse(
     string Username,
     string Mobile,
     int UserRole,
-    IReadOnlyList<RoleDto> UserRoleList
+    IReadOnlyList<RoleDto> UserRoleList,
+    IReadOnlyList<string>? Permissions = null
 );
 
 public class AuthModule : ICarterModule
@@ -33,6 +34,7 @@ public class AuthModule : ICarterModule
         group.MapPost("login", async (
             [FromBody] LoginRequest request,
             IUserService userService,
+            IPermissionService permissionService,
             HttpContext httpContext,
             IConfiguration config,
             CancellationToken ct) =>
@@ -99,7 +101,8 @@ public class AuthModule : ICarterModule
                 Username: user.Username,
                 Mobile: user.Mobile ?? "",
                 UserRole: user.DefaultRoleId,
-                UserRoleList: roles
+                UserRoleList: roles,
+                Permissions: await permissionService.GetUserPermissionsAsync(user.Id)
             );
 
             return Results.Ok(response);
@@ -112,6 +115,7 @@ public class AuthModule : ICarterModule
         // 2. استعلام هویت کاربر جاری (Me)
         group.MapGet("me", async (
             IUserService userService,
+            IPermissionService permissionService,
             ICurrentUserService currentUser,
             HttpContext httpContext,
             CancellationToken ct) =>
@@ -139,7 +143,8 @@ public class AuthModule : ICarterModule
                 Username: user.Username,
                 Mobile: user.Mobile ?? "",
                 UserRole: user.DefaultRoleId,
-                UserRoleList: roles
+                UserRoleList: roles,
+                Permissions: await permissionService.GetUserPermissionsAsync(user.Id)
             );
 
             return Results.Ok(response);
@@ -165,6 +170,7 @@ public class AuthModule : ICarterModule
         group.MapPost("change-password", async (
             [FromBody] ChangePasswordRequest request,
             IUserService userService,
+            IPermissionService permissionService,
             ICurrentUserService currentUser,
             CancellationToken ct) =>
         {

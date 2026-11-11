@@ -11,9 +11,13 @@ public class AdminAnalyticsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/admin/analytics")
-            .WithTags("Admin Analytics & KPI")
-            .RequireAuthorization();
+        RegisterAnalyticsRoutes(app.MapGroup("/api/v1/admin/analytics"));
+        RegisterAnalyticsRoutes(app.MapGroup("/api/v1/analytics"));
+    }
+
+    private static void RegisterAnalyticsRoutes(RouteGroupBuilder group)
+    {
+        group.WithTags("Admin Analytics & KPI").RequireAuthorization(policy => policy.RequireRole("4", "5"));
 
         // 1. Overview KPIs
         group.MapGet("/overview", async (
@@ -21,11 +25,10 @@ public class AdminAnalyticsModule : ICarterModule
             DateTime? toDate,
             int? projectId,
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "dashboard.analytics.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             var overview = await analyticsService.GetOverviewStatsAsync(fromDate, toDate, projectId);
             return Results.Ok(new { isSuccess = true, data = overview });
@@ -36,11 +39,10 @@ public class AdminAnalyticsModule : ICarterModule
             int? days,
             int? projectId,
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "dashboard.analytics.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             int d = days.GetValueOrDefault(30);
             var trends = await analyticsService.GetTicketTrendsAsync(d, projectId);
@@ -51,11 +53,10 @@ public class AdminAnalyticsModule : ICarterModule
         group.MapGet("/status-distribution", async (
             int? projectId,
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "dashboard.analytics.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             var distribution = await analyticsService.GetStatusDistributionAsync(projectId);
             return Results.Ok(new { isSuccess = true, data = distribution });
@@ -65,11 +66,10 @@ public class AdminAnalyticsModule : ICarterModule
         group.MapGet("/priority-distribution", async (
             int? projectId,
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "dashboard.analytics.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             var distribution = await analyticsService.GetPriorityDistributionAsync(projectId);
             return Results.Ok(new { isSuccess = true, data = distribution });
@@ -79,11 +79,10 @@ public class AdminAnalyticsModule : ICarterModule
         group.MapGet("/sla", async (
             int? projectId,
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "sla.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             var sla = await analyticsService.GetSlaPerformanceAsync(projectId);
             return Results.Ok(new { isSuccess = true, data = sla });
@@ -92,11 +91,10 @@ public class AdminAnalyticsModule : ICarterModule
         // 6. Project Workload
         group.MapGet("/project-workload", async (
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "dashboard.analytics.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             var workload = await analyticsService.GetProjectWorkloadAsync();
             return Results.Ok(new { isSuccess = true, data = workload });
@@ -105,11 +103,10 @@ public class AdminAnalyticsModule : ICarterModule
         // 7. Team Performance
         group.MapGet("/team-performance", async (
             IAdminAnalyticsService analyticsService,
-            IPermissionService permService,
             ICurrentUserService currentUser) =>
         {
-            if (currentUser.UserId == null || !await permService.HasPermissionAsync(currentUser.UserId.Value, "dashboard.analytics.view"))
-                return Results.Forbid();
+            if (currentUser.UserId == null)
+                return Results.Unauthorized();
 
             var performance = await analyticsService.GetTeamPerformanceAsync();
             return Results.Ok(new { isSuccess = true, data = performance });

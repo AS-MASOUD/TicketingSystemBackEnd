@@ -16,7 +16,7 @@ public class AdminAuditModule : ICarterModule
             .WithTags("Admin Audit Logs")
             .RequireAuthorization();
 
-        group.MapGet("/", async (
+        group.MapGet("", async (
             int? page,
             int? pageSize,
             string? action,

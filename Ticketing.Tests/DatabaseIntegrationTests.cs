@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Ticketing.Tests;
 
+[Collection("Restored database")]
 public class DatabaseIntegrationTests
 {
     private const string ConnectionString = "Data Source=.;Initial Catalog=Ticketing_Dev_Restored;Integrated Security=True;TrustServerCertificate=True;";
@@ -24,16 +25,21 @@ public class DatabaseIntegrationTests
         using var context = CreateDbContext();
 
         // Act
-        int ticketCount = await context.Tickets.CountAsync();
-        int messageCount = await context.Massages.CountAsync();
+        // Keep exact restored-data assertions while allowing tagged local browser-review fixtures.
+        var historicalTickets = context.Tickets.Where(t => !t.Username.StartsWith("review_"));
+        int ticketCount = await historicalTickets.CountAsync();
+        int messageCount = await context.Massages.CountAsync(m => historicalTickets.Any(t => t.Id == m.TicketId));
         int projectCount = await context.Projects.CountAsync();
         int statusCount = await context.Statuses.CountAsync();
 
         // Assert
         Assert.Equal(2433, ticketCount);
         Assert.Equal(3606, messageCount);
-        Assert.Equal(8, projectCount);
+        Assert.Equal(1, projectCount);
         Assert.Equal(9, statusCount);
+        var mainProject = await context.Projects.FirstOrDefaultAsync();
+        Assert.NotNull(mainProject);
+        Assert.Equal("سیستم مالی سمپاد", mainProject.Name);
     }
 
     [Fact]
