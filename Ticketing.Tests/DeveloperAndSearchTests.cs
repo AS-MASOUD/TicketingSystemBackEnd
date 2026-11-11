@@ -51,13 +51,12 @@ public class DeveloperAndSearchTests
     }
 
     [Fact]
-    public async Task BlankSearch_StillRestrictsEmployerToVisibleTickets()
+    public async Task BlankSearch_IncludesAllSharedEmployerTickets()
     {
         var f = new TicketTestFixture();
         f.User.RoleIds = new[] { 1 };
         var result = await f.Handler<GetSearchResultHandler.Handler>().Handle(new GetSearchResultQuery(), default);
         var rows = Json(result).EnumerateArray().ToArray();
-        Assert.Single(rows);
-        Assert.Equal(1, rows[0].GetProperty("Id").GetInt32());
+        Assert.Equal(new[] { 1, 2, 3 }, rows.Select(row => row.GetProperty("Id").GetInt32()).Order().ToArray());
     }
 }

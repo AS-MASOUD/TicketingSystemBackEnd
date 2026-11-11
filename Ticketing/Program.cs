@@ -135,6 +135,7 @@ builder.Services.AddMediatR(configuration =>
 {
     configuration.RegisterServicesFromAssembly(assembly);
     configuration.AddOpenBehavior(typeof(CallerIdentityBehavior<,>));
+    configuration.AddOpenBehavior(typeof(TicketNotificationBehavior<,>));
 });
 builder.Services.AddCarter(new DependencyContextAssemblyCatalog(assembly));
 

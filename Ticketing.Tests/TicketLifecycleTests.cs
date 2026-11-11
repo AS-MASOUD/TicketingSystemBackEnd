@@ -20,7 +20,7 @@ namespace Ticketing.Tests;
 public class TicketLifecycleTests
 {
     [Fact]
-    public async Task History_UsesStoredPreviousRole_AndRejectsForeignRequester()
+    public async Task History_UsesStoredPreviousRole_AndAllowsSharedRequesterViewing()
     {
         var f = new TicketTestFixture();
         var result = await f.Handler<GetWorkFlowHandler.Handler>().Handle(new GetWorkFlowQuery { TicketId = 2 }, default);
@@ -28,7 +28,7 @@ public class TicketLifecycleTests
         Assert.Equal(4, first.GetProperty("previousRoleId").GetInt32());
         Assert.Equal(5, first.GetProperty("currentRoleId").GetInt32());
         f.User.RoleIds = new[] { 1 };
-        Assert.True(Denied(await f.Handler<GetWorkFlowHandler.Handler>().Handle(new GetWorkFlowQuery { TicketId = 2 }, default)));
+        Assert.False(Denied(await f.Handler<GetWorkFlowHandler.Handler>().Handle(new GetWorkFlowQuery { TicketId = 2 }, default)));
     }
 
     [Fact]
@@ -141,22 +141,22 @@ public class TicketLifecycleTests
     }
 
     [Fact]
-    public async Task ListAndCounters_IgnoreSpoofedIdentity_AndDoNotConfuseDeveloperEnumsWithUserIds()
+    public async Task ListAndCounters_ShowSharedTickets_WithoutUsingSuppliedIdentity()
     {
         var f = new TicketTestFixture();
         var list = await f.Handler<GetRoleTicketListHandler.Handler>().Handle(new GetRoleTicketListQuery { RoleId = 5, UserId = 8 }, default);
-        Assert.Equal(new[] { 1, 2 }, Json(list!).EnumerateArray().Select(x => x.GetProperty("Id").GetInt32()).Order().ToArray());
+        Assert.Equal(new[] { 1, 2, 3 }, Json(list!).EnumerateArray().Select(x => x.GetProperty("Id").GetInt32()).Order().ToArray());
         f.User.RoleIds = new[] { 1 };
         var counters = await f.Handler<GetRoleTicketInfoHandler.Handler>().Handle(new GetRoleTicketInfoQuery { RoleId = 4, UserId = 8, RequestTypeId = 1 }, default);
-        Assert.Equal(1, Json(counters).GetProperty("total").GetInt32());
+        Assert.Equal(3, Json(counters).GetProperty("total").GetInt32());
     }
 
     [Fact]
-    public async Task Search_NullOptionalFilters_AreSafe_AndTechnicalResultsAreScoped()
+    public async Task Search_NullOptionalFilters_AreSafe_AndIncludesAllSharedTickets()
     {
         var f = new TicketTestFixture();
         var result = await f.Handler<GetSearchResultHandler.Handler>().Handle(new GetSearchResultQuery { TicketNumber = null!, Title = null!, Username = null! }, default);
-        Assert.Equal(2, Json(result!).GetArrayLength());
+        Assert.Equal(3, Json(result!).GetArrayLength());
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public class TicketLifecycleTests
     }
 
     [Fact]
-    public async Task OrdinaryDashboard_RespectsRequesterVisibility()
+    public async Task OrdinaryDashboard_IncludesSharedRequesterTickets()
     {
         var f = new TicketTestFixture();
         f.User.RoleIds = new[] { 1 };
@@ -242,7 +242,7 @@ public class TicketLifecycleTests
         }
         var response = await f.Handler<GetDashboardChartDataHandler.Handler>().Handle(new GetDashboardChartDataQuery { monthId = 1 }, default);
         var data = System.Text.Json.JsonDocument.Parse((string)response).RootElement;
-        Assert.Equal(10, data.GetProperty("SupportResultYear").EnumerateArray().Sum(row => row.GetProperty("SupportTime").GetInt32()));
+        Assert.Equal(50, data.GetProperty("SupportResultYear").EnumerateArray().Sum(row => row.GetProperty("SupportTime").GetInt32()));
     }
 
     [Fact]

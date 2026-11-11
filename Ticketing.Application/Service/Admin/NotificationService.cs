@@ -53,14 +53,14 @@ public class NotificationService : INotificationService
                 query = query.Where(n => !n.IsRead);
 
             return await query
-                .OrderByDescending(n => n.CreatedAt)
-                .Take(limit)
+                .OrderByDescending(n => n.CreatedAt).ThenByDescending(n => n.Id)
+                .Take(Math.Clamp(limit, 1, 100))
                 .ToListAsync();
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to fetch notifications for user {UserId}, returning empty collection", userId);
-            return Array.Empty<TicketingNotification>();
+            _logger?.LogWarning(ex, "Failed to fetch notifications for user {UserId}", userId);
+            throw;
         }
     }
 
@@ -74,7 +74,7 @@ public class NotificationService : INotificationService
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Failed to count unread notifications for user {UserId}", userId);
-            return 0;
+            throw;
         }
     }
 
@@ -117,6 +117,7 @@ public class NotificationService : INotificationService
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Failed to mark all notifications as read for user {UserId}", userId);
+            throw;
         }
     }
 }

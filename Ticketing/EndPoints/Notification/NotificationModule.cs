@@ -41,15 +41,15 @@ public class NotificationModule : ICarterModule
                     Type = n.Type,
                     TargetUrl = n.TargetUrl,
                     IsRead = n.IsRead,
-                    CreatedAt = n.CreatedAt
+                    CreatedAt = DateTime.SpecifyKind(n.CreatedAt, DateTimeKind.Utc)
                 }).ToList();
 
                 return Results.Ok(new { isSuccess = true, data = dtos });
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to retrieve notifications; returning empty list fallback");
-                return Results.Ok(new { isSuccess = true, data = new List<NotificationDto>() });
+                logger.LogWarning(ex, "Failed to retrieve notifications");
+                return Results.Json(new { isSuccess = false, message = "دریافت اعلان‌ها انجام نشد." }, statusCode: 503);
             }
         });
 
@@ -69,8 +69,8 @@ public class NotificationModule : ICarterModule
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to count unread notifications; returning 0 fallback");
-                return Results.Ok(new { isSuccess = true, data = new { count = 0 } });
+                logger.LogWarning(ex, "Failed to count unread notifications");
+                return Results.Json(new { isSuccess = false, message = "دریافت تعداد اعلان‌ها انجام نشد." }, statusCode: 503);
             }
         });
 
@@ -113,7 +113,7 @@ public class NotificationModule : ICarterModule
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to mark all notifications as read");
-                return Results.Ok(new { isSuccess = true, message = "عملیات انجام شد." });
+                return Results.Json(new { isSuccess = false, message = "ثبت اعلان‌های خوانده‌شده انجام نشد." }, statusCode: 503);
             }
         });
     }

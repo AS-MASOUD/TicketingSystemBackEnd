@@ -15,8 +15,9 @@ public static class TicketAccessPolicy
         if (!user.UserId.HasValue || user.UserId.Value <= 0)
             return false;
 
-        // Admins (role 4 Taz, role 5 Vira) and Supervisor (role 3) may view all tickets
-        if (user.IsAdminVira || user.IsAdminTaz || user.HasRole(3) || user.HasRole(4) || user.HasRole(5))
+        // Requesters and developers share the full ticket view, independent of creator or assignee.
+        // Mutation permissions below continue to enforce ownership and workflow routing.
+        if (user.IsAdminVira || user.IsAdminTaz || user.RoleIds.Any(r => r >= 1 && r <= 5))
             return true;
 
         // Requester/owner may view own ticket
